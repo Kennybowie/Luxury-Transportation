@@ -9,9 +9,12 @@ function roundUp(value, step) {
 export async function POST(req) {
   try {
     const body = await req.json();
+
     const pickup = (body.pickup || "").trim();
     const dropoff = (body.dropoff || "").trim();
-    const stops = Array.isArray(body.stops) ? body.stops : [];
+    const stops = Array.isArray(body.stops)
+      ? body.stops.map((s) => String(s).trim()).filter(Boolean)
+      : [];
 
     if (!pickup || !dropoff) {
       return NextResponse.json({ error: "Missing addresses" }, { status: 400 });
@@ -25,11 +28,10 @@ export async function POST(req) {
       );
     }
 
-    // Base point you want to include (to/from your “base”)
+    // Base location (you can change in Vercel env vars)
     const origin = process.env.BASE_ORIGIN_ADDRESS || "South Side Chicago";
 
-    // Build route: origin -> pickup -> (stops...) -> dropoff
-    // Google Directions supports waypoints as a pipe-separated list.
+    // Route: origin -> pickup -> (stops...) -> dropoff
     const waypointsList = [pickup, ...stops].filter(Boolean);
 
     const url = new URL("https://maps.googleapis.com/maps/api/directions/json");
@@ -37,7 +39,6 @@ export async function POST(req) {
     url.searchParams.set("destination", dropoff);
 
     if (waypointsList.length > 0) {
-      // e.g. "pickup|stop1|stop2"
       url.searchParams.set("waypoints", waypointsList.join("|"));
     }
 
@@ -58,7 +59,10 @@ export async function POST(req) {
     }
 
     const legs = data.routes?.[0]?.legs || [];
-    const seconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+    const seconds = legs.reduce(
+      (sum, leg) => sum + (leg.duration?.value || 0),
+      0
+    );
     const minutes = Math.round(seconds / 60);
 
     // Pricing config
@@ -67,11 +71,9 @@ export async function POST(req) {
     const rounding = Number(process.env.ROUNDING_MINUTES || 15);
     const minimum = Number(process.env.MINIMUM_MINUTES || 60);
 
-    // Round and enforce minimum
     const billableMinutes = Math.max(minimum, roundUp(minutes + buffer, rounding));
     const price = (billableMinutes / 60) * hourlyRate;
 
-    // Helpful debug for you (optional)
     return NextResponse.json({
       billableMinutes,
       price,
@@ -84,3 +86,4 @@ export async function POST(req) {
       { status: 500 }
     );
   }
+}
