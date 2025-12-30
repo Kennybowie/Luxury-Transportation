@@ -31,9 +31,9 @@ export async function POST(req) {
     const waypoints = [pickup, ...stops].filter(Boolean);
 
     const url = new URL("https://maps.googleapis.com/maps/api/directions/json");
-    url.searchParams.set("origin", base);
+    url.searchParams.set("origin", pickup);
     url.searchParams.set("destination", dropoff);
-    if (waypoints.length > 0) {
+    if (stops.length > 0) {
       url.searchParams.set("waypoints", waypoints.join("|"));
     }
     url.searchParams.set("key", apiKey);
