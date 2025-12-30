@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 function roundUp(value, step) {
   return Math.ceil(value / step) * step;
 }
 
 export async function POST(req) {
   try {
-    const { pickup, dropoff } = await req.json();
+    const body = await req.json();
+    const pickup = (body.pickup || "").trim();
+    const dropoff = (body.dropoff || "").trim();
+    const stops = Array.isArray(body.stops) ? body.stops : [];
 
     if (!pickup || !dropoff) {
       return NextResponse.json({ error: "Missing addresses" }, { status: 400 });
@@ -15,17 +20,27 @@ export async function POST(req) {
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Missing GOOGLE_MAPS_API_KEY in .env.local" },
+        { error: "Missing GOOGLE_MAPS_API_KEY in env vars" },
         { status: 500 }
       );
     }
 
+    // Base point you want to include (to/from your “base”)
     const origin = process.env.BASE_ORIGIN_ADDRESS || "South Side Chicago";
+
+    // Build route: origin -> pickup -> (stops...) -> dropoff
+    // Google Directions supports waypoints as a pipe-separated list.
+    const waypointsList = [pickup, ...stops].filter(Boolean);
 
     const url = new URL("https://maps.googleapis.com/maps/api/directions/json");
     url.searchParams.set("origin", origin);
     url.searchParams.set("destination", dropoff);
-    url.searchParams.set("waypoints", pickup);
+
+    if (waypointsList.length > 0) {
+      // e.g. "pickup|stop1|stop2"
+      url.searchParams.set("waypoints", waypointsList.join("|"));
+    }
+
     url.searchParams.set("key", apiKey);
 
     const res = await fetch(url.toString());
@@ -33,28 +48,39 @@ export async function POST(req) {
 
     if (data.status !== "OK") {
       return NextResponse.json(
-        { error: "Route error", details: data.status, message: data.error_message },
+        {
+          error: "Route error",
+          details: data.status,
+          message: data.error_message,
+        },
         { status: 400 }
       );
     }
 
-    const seconds = data.routes[0].legs.reduce(
-      (sum, leg) => sum + leg.duration.value,
-      0
-    );
-
+    const legs = data.routes?.[0]?.legs || [];
+    const seconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
     const minutes = Math.round(seconds / 60);
 
+    // Pricing config
     const hourlyRate = Number(process.env.HOURLY_RATE || 40);
     const buffer = Number(process.env.BUFFER_MINUTES || 10);
     const rounding = Number(process.env.ROUNDING_MINUTES || 15);
     const minimum = Number(process.env.MINIMUM_MINUTES || 60);
 
+    // Round and enforce minimum
     const billableMinutes = Math.max(minimum, roundUp(minutes + buffer, rounding));
     const price = (billableMinutes / 60) * hourlyRate;
 
-    return NextResponse.json({ billableMinutes, price });
-  } catch {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    // Helpful debug for you (optional)
+    return NextResponse.json({
+      billableMinutes,
+      price,
+      routeMinutes: minutes,
+      stopsCount: stops.length,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: "Server error", message: e?.message },
+      { status: 500 }
+    );
   }
-}
