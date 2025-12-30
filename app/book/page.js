@@ -60,9 +60,26 @@ export default function BookPage() {
         style={{ width: "100%", padding: 10, marginBottom: 10, textAlign: "center" }}
       />
 
-      <button onClick={getQuote} disabled={loading || !pickup || !dropoff}>
-        {loading ? "Calculating..." : "Get Price"}
-      </button>
+     <button
+  onClick={getQuote}
+  disabled={loading || !pickup || !dropoff}
+  style={{
+    width: "100%",
+    padding: 14,
+    borderRadius: 10,
+    border: "2px solid #000",
+    background: loading || !pickup || !dropoff ? "#e5e5e5" : "#000",
+    color: loading || !pickup || !dropoff ? "#666" : "#fff",
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: loading || !pickup || !dropoff ? "not-allowed" : "pointer",
+    transition: "transform 0.05s ease, opacity 0.2s ease",
+  }}
+  onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
+  onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+>
+  {loading ? "Calculating..." : "Get Price"}
+</button>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
@@ -94,7 +111,29 @@ export default function BookPage() {
       console.error(e);
     }
   }}
-  style={{ marginTop: 10, padding: 12, width: "100%" }}
+ style={{
+  marginTop: 12,
+  width: "100%",
+  padding: 14,
+  borderRadius: 10,
+  border: "2px solid #000",
+  background: "#fff",
+  color: "#000",
+  fontSize: 16,
+  fontWeight: 700,
+  cursor: "pointer",
+  transition: "background-color 0.2s, color 0.2s, transform 0.05s",
+}}
+onMouseEnter={(e) => {
+  e.currentTarget.style.backgroundColor = "#000";
+  e.currentTarget.style.color = "#fff";
+}}
+onMouseLeave={(e) => {
+  e.currentTarget.style.backgroundColor = "#fff";
+  e.currentTarget.style.color = "#000";
+}}
+onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
+onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
 >
   Pay Now
 </button>
