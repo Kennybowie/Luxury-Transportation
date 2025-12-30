@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DateTime } from "luxon";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,9 @@ export async function POST(req) {
       ? body.stops.map((s) => String(s || "").trim()).filter(Boolean)
       : [];
 
+    const rideDate = (body.rideDate || "").trim(); // "YYYY-MM-DD"
+    const rideTime = (body.rideTime || "").trim(); // "HH:mm"
+
     if (!pickup || !dropoff) {
       return NextResponse.json({ error: "Missing addresses" }, { status: 400 });
     }
@@ -24,49 +28,70 @@ export async function POST(req) {
       );
     }
 
-    // ✅ Include base -> pickup time
-    const base = (process.env.BASE_ORIGIN_ADDRESS || "South Side Chicago").trim();
+    const hourlyRate = Number(process.env.HOURLY_RATE || 40);
+    const minimumCharge = Number(process.env.MINIMUM_CHARGE || 10);
+    const bufferSeconds = Number(process.env.BUFFER_SECONDS || 0);
 
-    // Route: base -> pickup -> (stops...) -> dropoff
-    const waypoints = [pickup, ...stops].filter(Boolean);
-
-    const url = new URL("https://maps.googleapis.com/maps/api/directions/json");
-    url.searchParams.set("origin", pickup);
-    url.searchParams.set("destination", dropoff);
-    if (stops.length > 0) {
-      url.searchParams.set("waypoints", waypoints.join("|"));
+    // If date/time provided, use it; otherwise use "now" for live traffic at quote time.
+    let departureTimeIso;
+    if (rideDate && rideTime) {
+      departureTimeIso = DateTime.fromISO(`${rideDate}T${rideTime}`, {
+        zone: "America/Chicago",
+      })
+        .toUTC()
+        .toISO();
+    } else {
+      departureTimeIso = DateTime.utc().toISO();
     }
-    url.searchParams.set("key", apiKey);
 
-    const res = await fetch(url.toString());
-    const data = await res.json();
+    // Routes API v2 request
+    const payload = {
+      origin: { address: pickup },
+      destination: { address: dropoff },
+      intermediates: stops.map((a) => ({ address: a })),
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE",
+      departureTime: departureTimeIso,
+    };
 
-    if (data.status !== "OK") {
+    const routesRes = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          // Only ask for what we need (faster/cheaper)
+          "X-Goog-FieldMask": "routes.duration,routes.staticDuration",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const routesData = await routesRes.json().catch(() => ({}));
+
+    if (!routesRes.ok || !routesData.routes?.[0]) {
       return NextResponse.json(
-        { error: "Route error", details: data.status, message: data.error_message },
+        {
+          error: "Routes API error",
+          details: routesData.error?.status || routesRes.status,
+          message: routesData.error?.message,
+        },
         { status: 400 }
       );
     }
 
-    const legs = data.routes?.[0]?.legs || [];
-    const routeSeconds = legs.reduce((sum, leg) => sum + (leg.duration?.value || 0), 0);
+    // duration is traffic-aware when routingPreference is TRAFFIC_AWARE
+    // It comes back like "1234s"
+    const durationStr = routesData.routes[0].duration || "0s";
+    const trafficSeconds = Number(String(durationStr).replace("s", "")) || 0;
 
-    const bufferSeconds = Number(process.env.BUFFER_SECONDS || 0);
-    const billableSeconds = Math.max(0, routeSeconds + bufferSeconds);
-
-    const hourlyRate = Number(process.env.HOURLY_RATE || 40);
-    const minimumCharge = Number(process.env.MINIMUM_CHARGE || 10);
-
-    // ✅ Exact time-based price
+    const billableSeconds = Math.max(0, trafficSeconds + bufferSeconds);
     const rawPrice = (billableSeconds / 3600) * hourlyRate;
-
-    // ✅ Minimum fare (dollar floor)
     const finalPrice = Math.max(minimumCharge, rawPrice);
 
     return NextResponse.json({
-      routeSeconds,
-      billableSeconds,
-      routeMinutes: Math.round((routeSeconds / 60) * 10) / 10,
+      trafficMinutes: Math.round((trafficSeconds / 60) * 10) / 10,
       price: Math.round(finalPrice * 100) / 100,
       minimumCharge,
     });
