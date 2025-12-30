@@ -36,6 +36,21 @@ export default function BookPage() {
 
   return (
    <main
+  <div style={{ textAlign: "center", marginBottom: 20 }}>
+  <img
+    src="/tempmotion-logo.jpg"
+    alt="Tempmotion Logo"
+    style={{
+      width: 90,            // ✅ smaller logo
+      maxWidth: "100%",
+      margin: "0 auto 6px",
+      display: "block",
+    }}
+  />
+  <div style={{ fontSize: 13, letterSpacing: 1, opacity: 0.85 }}>
+    Private Transportation • Chicago
+  </div>
+</div>
   style={{
     maxWidth: 480,
     margin: "40px auto",
@@ -44,7 +59,7 @@ export default function BookPage() {
     padding: "0 16px",
   }}
 >
-      <h1>Book a Ride</h1>
+    
 
       <input
         placeholder="Pickup address"
