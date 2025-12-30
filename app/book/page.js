@@ -35,13 +35,21 @@ export default function BookPage() {
   }
 
   return (
-   <main
-  <div style={{ textAlign: "center", marginBottom: 20 }}>
+<main
+  style={{
+    maxWidth: 480,
+    margin: "40px auto",
+    fontFamily: "sans-serif",
+    textAlign: "center",
+    padding: "0 16px",
+  }}
+>
+<div style={{ textAlign: "center", marginBottom: 20 }}>
   <img
     src="/tempmotion-logo.jpg"
     alt="Tempmotion Logo"
     style={{
-      width: 90,            // ✅ smaller logo
+      width: 90,
       maxWidth: "100%",
       margin: "0 auto 6px",
       display: "block",
