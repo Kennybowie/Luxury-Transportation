@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 
-/** ---------- Helpers ---------- */
+/* ---------------- Time helpers ---------------- */
 function formatTimeLabel(time24) {
   const [h, m] = time24.split(":").map(Number);
   const suffix = h >= 12 ? "PM" : "AM";
@@ -48,15 +48,16 @@ function weekdayIndexInChicago(isoDate, TZ) {
   return map[weekday];
 }
 
-/** ---------- Autocomplete input (Pickup/Dropoff/Stops) ---------- */
+/* ---------------- Autocomplete Address Input ---------------- */
 function AddressInput({ label, placeholder, value, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(false);
   const lastQueryRef = useRef("");
+  const blurTimerRef = useRef(null);
 
   async function fetchPredictions(q) {
-    const query = q.trim();
+    const query = (q || "").trim();
     lastQueryRef.current = query;
 
     if (query.length < 3) {
@@ -71,7 +72,7 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
       if (!res.ok) throw new Error(data.error || "Autocomplete failed");
 
       if (lastQueryRef.current === query) {
-        setPredictions(data.predictions || []);
+        setPredictions(Array.isArray(data.predictions) ? data.predictions : []);
       }
     } catch {
       setPredictions([]);
@@ -95,8 +96,14 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
           setOpen(true);
           fetchPredictions(e.target.value);
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={() => {
+          if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+          setOpen(true);
+          fetchPredictions(value);
+        }}
+        onBlur={() => {
+          blurTimerRef.current = setTimeout(() => setOpen(false), 150);
+        }}
         style={{
           width: "100%",
           padding: 10,
@@ -110,7 +117,7 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
         }}
       />
 
-      {open && (predictions.length > 0 || loading) && (
+      {open && (loading || predictions.length > 0) && (
         <div
           style={{
             position: "absolute",
@@ -123,36 +130,37 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
             borderRadius: 10,
             marginTop: 6,
             overflow: "hidden",
-            boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.12)",
             textAlign: "left",
             color: "#111",
             WebkitTextFillColor: "#111",
           }}
         >
           {loading && (
-            <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>Searching…</div>
+            <div style={{ padding: 10, fontSize: 13, fontWeight: 700, opacity: 0.75 }}>
+              Searching…
+            </div>
           )}
 
           {predictions.slice(0, 6).map((p) => (
             <div
               key={p.place_id}
               onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => e.preventDefault()}
               onClick={() => {
                 onChange(p.description);
                 setOpen(false);
                 setPredictions([]);
               }}
               style={{
-             style={{
-              padding: 10,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: "pointer",
-              borderTop: "1px solid #f2f2f2",
-              color: "#111",
-              backgroundColor: "#fff",
-              WebkitTextFillColor: "#111",
-               
+                padding: 10,
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: "pointer",
+                borderTop: "1px solid #f2f2f2",
+                color: "#111",
+                background: "#fff",
+                WebkitTextFillColor: "#111",
               }}
             >
               {p.description}
@@ -164,9 +172,9 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
   );
 }
 
-/** ---------- Page ---------- */
+/* ---------------- Page ---------------- */
 export default function BookPage() {
-  // ===== Settings =====
+  // Settings
   const TZ = "America/Chicago";
   const MIN_HOURS_AHEAD = 2;
   const DAYS_AHEAD = 30;
@@ -175,29 +183,28 @@ export default function BookPage() {
   const END_TIME = "22:00";
   const STEP_MINUTES = 15;
 
-  // Optional blocks (edit these later)
+  // Optional: add later
   const UNAVAILABLE_DATES = useMemo(() => new Set([]), []);
   const UNAVAILABLE_WEEKDAYS = useMemo(() => new Set([]), []);
   const TIME_BLOCKS_BY_WEEKDAY = useMemo(() => ({}), []);
 
-  // ===== State =====
+  // State
   const [rideDate, setRideDate] = useState("");
   const [rideTime, setRideTime] = useState("");
 
-  // ✅ Additional passengers (0–4)
+  // 0–3 additional passengers
   const [additionalPassengers, setAdditionalPassengers] = useState("0");
 
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
 
-  // Stops array
   const [stops, setStops] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
-  // ===== Availability logic =====
+  // Availability
   function isDayUnavailable(isoDate) {
     if (!isoDate) return false;
     if (UNAVAILABLE_DATES.has(isoDate)) return true;
@@ -208,7 +215,6 @@ export default function BookPage() {
 
   function earliestAllowedTimeForDate(isoDate) {
     if (!isoDate) return null;
-
     const now = chicagoNow(TZ);
     const todayIso = toIsoDateInChicago(now, TZ);
 
@@ -236,6 +242,7 @@ export default function BookPage() {
     return false;
   }
 
+  // Build day list
   const days = useMemo(() => {
     const now = chicagoNow(TZ);
     const labelFmt = new Intl.DateTimeFormat("en-US", {
@@ -258,7 +265,6 @@ export default function BookPage() {
   }, [DAYS_AHEAD]);
 
   const times = useMemo(() => generateTimes(START_TIME, END_TIME, STEP_MINUTES), []);
-
   const cleanedStops = useMemo(
     () => stops.map((s) => String(s).trim()).filter(Boolean),
     [stops]
@@ -273,7 +279,6 @@ export default function BookPage() {
     !isDayUnavailable(rideDate) &&
     !isTimeBlocked(rideDate, rideTime);
 
-  // ===== Actions =====
   async function getQuote() {
     setLoading(true);
     setError(null);
@@ -289,21 +294,18 @@ export default function BookPage() {
           stops: cleanedStops,
           rideDate,
           rideTime,
-          additionalPassengers: Number(additionalPassengers), // ✅
+          additionalPassengers: Number(additionalPassengers),
         }),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const details = [data.error, data.details, data.message]
-          .filter(Boolean)
-          .join(" — ");
+        const details = [data.error, data.details, data.message].filter(Boolean).join(" — ");
         throw new Error(details || "Quote failed");
       }
-
       setResult(data);
-    } catch (err) {
-      setError(err?.message || "Quote failed");
+    } catch (e) {
+      setError(e?.message || "Quote failed");
     } finally {
       setLoading(false);
     }
@@ -321,7 +323,7 @@ export default function BookPage() {
           stops: cleanedStops,
           rideDate,
           rideTime,
-          additionalPassengers: Number(additionalPassengers), // ✅
+          additionalPassengers: Number(additionalPassengers),
         }),
       });
 
@@ -330,7 +332,6 @@ export default function BookPage() {
         throw new Error(data.error || data.message || `Checkout failed (${res.status})`);
       }
       if (!data.url) throw new Error("Checkout failed: missing Stripe URL");
-
       window.location.assign(data.url);
     } catch (e) {
       alert(e?.message || "Checkout failed");
@@ -338,7 +339,7 @@ export default function BookPage() {
     }
   }
 
-  // Darker/bolder select text (without forcing backgrounds)
+  // Select style (does NOT force background color)
   const selectStyle = {
     width: "100%",
     padding: 12,
@@ -351,15 +352,14 @@ export default function BookPage() {
     fontWeight: 800,
   };
 
-  // Stops handlers
   function addStop() {
     setStops((prev) => [...prev, ""]);
   }
-  function updateStop(index, value) {
-    setStops((prev) => prev.map((s, i) => (i === index ? value : s)));
+  function updateStop(idx, v) {
+    setStops((prev) => prev.map((s, i) => (i === idx ? v : s)));
   }
-  function removeStop(index) {
-    setStops((prev) => prev.filter((_, i) => i !== index));
+  function removeStop(idx) {
+    setStops((prev) => prev.filter((_, i) => i !== idx));
   }
 
   return (
@@ -372,24 +372,19 @@ export default function BookPage() {
         padding: "0 16px",
       }}
     >
-      {/* HEADER */}
+      {/* Header */}
       <div style={{ marginBottom: 18 }}>
         <img
           src="/tempmotion-logo.jpg"
           alt="Tempmotion Logo"
-          style={{
-            width: 90,
-            maxWidth: "100%",
-            margin: "0 auto 6px",
-            display: "block",
-          }}
+          style={{ width: 90, maxWidth: "100%", margin: "0 auto 6px", display: "block" }}
         />
         <div style={{ fontSize: 13, letterSpacing: 1, opacity: 0.85 }}>
           Private Transportation • Chicago
         </div>
       </div>
 
-      {/* DAY */}
+      {/* Day */}
       <select
         value={rideDate}
         onChange={(e) => {
@@ -409,7 +404,7 @@ export default function BookPage() {
         })}
       </select>
 
-      {/* TIME */}
+      {/* Time */}
       <select
         value={rideTime}
         onChange={(e) => setRideTime(e.target.value)}
@@ -432,11 +427,10 @@ export default function BookPage() {
         })}
       </select>
 
-      {/* ADDITIONAL PASSENGERS ✅ */}
+      {/* Additional passengers */}
       <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
         How many additional passengers?
       </div>
-
       <select
         value={additionalPassengers}
         onChange={(e) => setAdditionalPassengers(e.target.value)}
@@ -446,18 +440,17 @@ export default function BookPage() {
         <option value="1">+1 passenger</option>
         <option value="2">+2 passengers</option>
         <option value="3">+3 passengers</option>
-        <option value="4">+4 passengers</option>
       </select>
 
       <p style={{ fontSize: 12, opacity: 0.7, marginTop: 0, marginBottom: 14 }}>
         Book at least 2 hours in advance. You can book up to 30 days ahead.
       </p>
 
-      {/* PICKUP / DROPOFF */}
+      {/* Pickup / Dropoff */}
       <AddressInput label="Pickup" placeholder="Pickup address" value={pickup} onChange={setPickup} />
       <AddressInput label="Dropoff" placeholder="Dropoff address" value={dropoff} onChange={setDropoff} />
 
-      {/* STOPS (autocomplete + add/remove) */}
+      {/* Stops */}
       <div style={{ width: "100%", marginTop: 6, marginBottom: 6, textAlign: "left" }}>
         <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>Stops (optional)</div>
 
@@ -509,7 +502,7 @@ export default function BookPage() {
         </button>
       </div>
 
-      {/* GET PRICE */}
+      {/* Get Price */}
       <button
         onClick={getQuote}
         disabled={!canQuote}
@@ -533,12 +526,10 @@ export default function BookPage() {
 
       {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
 
-      {/* RESULT + PAY */}
+      {/* Result + Pay */}
       {result && (
         <div style={{ marginTop: 20 }}>
-          <p style={{ marginBottom: 8 }}>
-            Billable Time: {result.billableMinutes} minutes
-          </p>
+          <p style={{ marginBottom: 8 }}>Billable Time: {result.billableMinutes} minutes</p>
           <h2 style={{ margin: "0 0 10px" }}>${Number(result.price).toFixed(2)}</h2>
 
           <button
