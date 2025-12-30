@@ -125,6 +125,8 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
             overflow: "hidden",
             boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
             textAlign: "left",
+            color: "#111",
+            WebkitTextFillColor: "#111",
           }}
         >
           {loading && (
@@ -141,10 +143,16 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
                 setPredictions([]);
               }}
               style={{
-                padding: 10,
-                fontSize: 13,
-                cursor: "pointer",
-                borderTop: "1px solid #f2f2f2",
+             style={{
+  padding: 10,
+  fontSize: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+  borderTop: "1px solid #f2f2f2",
+  color: "#111",
+  backgroundColor: "#fff",
+  WebkitTextFillColor: "#111",
+}}
               }}
             >
               {p.description}
