@@ -11,10 +11,10 @@ function buildDateOptions(days = 30) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
 
-    // value must be stable for backend (YYYY-MM-DD)
+    // stable value for backend
     const value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
-    // label should be clean (NO year, NO parentheses)
+    // label: no year, no parentheses
     const label = d.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
@@ -30,10 +30,18 @@ function buildTimeOptions(step = 15) {
   const out = [];
   for (let h = 0; h < 24; h++) {
     for (let m = 0; m < 60; m += step) {
-      out.push(`${pad2(h)}:${pad2(m)}`);
+      out.push(`${pad2(h)}:${pad2(m)}`); // value stays HH:mm for backend
     }
   }
   return out;
+}
+
+function formatTimeLabel(hhmm) {
+  // "HH:mm" -> "h:mm AM/PM"
+  const [h, m] = hhmm.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${pad2(m)} ${ampm}`;
 }
 
 function todayYMD() {
@@ -151,7 +159,7 @@ function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
                 background: idx === activeIdx ? "#f2f2f2" : "#fff",
                 padding: "10px 12px",
                 cursor: "pointer",
-                color: "#111", // readable dropdown
+                color: "#111",
                 fontWeight: 600,
                 fontSize: 14,
               }}
@@ -172,8 +180,8 @@ export default function BookPage() {
 
   // route
   const [pickup, setPickup] = useState("");
-  const [dropoff, setDropoff] = useState("");
   const [stops, setStops] = useState([]);
+  const [dropoff, setDropoff] = useState("");
 
   // additional passengers (0–3)
   const [passengers, setPassengers] = useState(0);
@@ -333,7 +341,7 @@ export default function BookPage() {
 
   return (
     <main style={mainStyle}>
-      {/* logo + subtitle unchanged */}
+      {/* logo + subtitle */}
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <img
           src="/tempmotion-logo.jpg"
@@ -350,7 +358,7 @@ export default function BookPage() {
         </div>
       </div>
 
-      {/* ✅ Date/Time FIRST */}
+      {/* Date first */}
       <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={selectStyle}>
         <option value="">Select date</option>
         {dateOptions.map((d) => (
@@ -360,6 +368,7 @@ export default function BookPage() {
         ))}
       </select>
 
+      {/* Time second (AM/PM labels) */}
       <select
         value={rideTime}
         onChange={(e) => setRideTime(e.target.value)}
@@ -371,11 +380,16 @@ export default function BookPage() {
           const disabled = disabledTimes.has(t);
           return (
             <option key={t} value={t} disabled={disabled}>
-              {disabled ? `${t} (unavailable)` : t}
+              {disabled ? `${formatTimeLabel(t)} (unavailable)` : formatTimeLabel(t)}
             </option>
           );
         })}
       </select>
+
+      {/* ✅ Must book note directly UNDER time */}
+      <p style={{ fontSize: 12, opacity: 0.8, margin: "0 0 14px" }}>
+        Must book at least <b>2 hours</b> in advance.
+      </p>
 
       {/* Additional passengers */}
       <select value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} style={selectStyle}>
@@ -385,11 +399,7 @@ export default function BookPage() {
         <option value={3}>Additional passengers: 3</option>
       </select>
 
-      <p style={{ fontSize: 12, opacity: 0.8, margin: "6px 0 14px" }}>
-        Must book at least <b>2 hours</b> in advance.
-      </p>
-
-      {/* ✅ Addresses AFTER date/time */}
+      {/* Pickup */}
       <AutocompleteInput
         placeholder="Pickup address"
         value={pickup}
@@ -397,16 +407,10 @@ export default function BookPage() {
         inputStyle={inputStyle}
       />
 
-      <AutocompleteInput
-        placeholder="Dropoff address"
-        value={dropoff}
-        onChange={setDropoff}
-        inputStyle={inputStyle}
-      />
-
-      {/* Stops */}
+      {/* ✅ Stops BETWEEN pickup and dropoff */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0 6px" }}>
-        <div style={{ fontWeight: 700, opacity: 0.85 }}>Stops (optional)</div>
+        <div style={{ fontWeight: 700, opacity: 0.9, color: "#111" }}>Stops (optional)</div>
+
         <button
           type="button"
           onClick={addStop}
@@ -416,7 +420,8 @@ export default function BookPage() {
             border: "1px solid #cfcfcf",
             background: "#fff",
             cursor: "pointer",
-            fontWeight: 700,
+            fontWeight: 800,
+            color: "#111", // ✅ black text
           }}
         >
           + Add stop
@@ -433,6 +438,7 @@ export default function BookPage() {
               inputStyle={inputStyle}
             />
           </div>
+
           <button
             type="button"
             onClick={() => removeStop(idx)}
@@ -444,12 +450,21 @@ export default function BookPage() {
               background: "#fff",
               cursor: "pointer",
               fontWeight: 900,
+              color: "#111",
             }}
           >
             ✕
           </button>
         </div>
       ))}
+
+      {/* Dropoff */}
+      <AutocompleteInput
+        placeholder="Dropoff address"
+        value={dropoff}
+        onChange={setDropoff}
+        inputStyle={inputStyle}
+      />
 
       {/* Get Price */}
       <button
