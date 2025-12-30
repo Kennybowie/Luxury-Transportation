@@ -50,14 +50,14 @@ export default function BookPage() {
         placeholder="Pickup address"
         value={pickup}
         onChange={(e) => setPickup(e.target.value)}
-        style={{ width: "100%", padding: 10, marginBottom: 10 }}
+        style={{ width: "100%", padding: 10, marginBottom: 10, textAlign: "center" }}
       />
 
       <input
         placeholder="Dropoff address"
         value={dropoff}
         onChange={(e) => setDropoff(e.target.value)}
-        style={{ width: "100%", padding: 10, marginBottom: 10 }}
+        style={{ width: "100%", padding: 10, marginBottom: 10, textAlign: "center" }}
       />
 
       <button onClick={getQuote} disabled={loading || !pickup || !dropoff}>
