@@ -1,34 +1,186 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+
+function formatTimeLabel(time24) {
+  const [h, m] = time24.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hr = ((h + 11) % 12) + 1;
+  return `${hr}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+function generateTimes(start = "08:00", end = "22:00", step = 15) {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let t = sh * 60 + sm;
+  const endT = eh * 60 + em;
+
+  const times = [];
+  while (t <= endT) {
+    const hh = String(Math.floor(t / 60)).padStart(2, "0");
+    const mm = String(t % 60).padStart(2, "0");
+    times.push(`${hh}:${mm}`);
+    t += step;
+  }
+  return times;
+}
+
+function chicagoNow(TIMEZONE) {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
+}
+
+function toIsoDateInChicago(d, TIMEZONE) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function weekdayIndexInChicago(isoDate, TIMEZONE) {
+  const d = new Date(`${isoDate}T12:00:00`);
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE,
+    weekday: "short",
+  }).format(d);
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[weekday];
+}
+
+function AddressInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  disabled,
+}) {
+  const [open, setOpen] = useState(false);
+  const [predictions, setPredictions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const lastQueryRef = useRef("");
+
+  async function fetchPredictions(q) {
+    const query = q.trim();
+    lastQueryRef.current = query;
+
+    if (query.length < 3) {
+      setPredictions([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/places?input=${encodeURIComponent(query)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Autocomplete failed");
+
+      // Only apply if it matches latest query (prevents flicker)
+      if (lastQueryRef.current === query) {
+        setPredictions(data.predictions || []);
+      }
+    } catch {
+      setPredictions([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ width: "100%", marginBottom: 10, position: "relative" }}>
+      {label ? (
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>{label}</div>
+      ) : null}
+
+      <input
+        placeholder={placeholder}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          fetchPredictions(e.target.value);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          // Delay close so click selection works
+          setTimeout(() => setOpen(false), 150);
+        }}
+        style={{
+          width: "100%",
+          padding: 10,
+          textAlign: "center",
+          borderRadius: 10,
+          border: "1px solid #ddd",
+          outline: "none",
+        }}
+      />
+
+      {open && (predictions.length > 0 || loading) && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: "100%",
+            zIndex: 50,
+            background: "#fff",
+            border: "1px solid #ddd",
+            borderRadius: 10,
+            marginTop: 6,
+            overflow: "hidden",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+            textAlign: "left",
+          }}
+        >
+          {loading && (
+            <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>
+              Searching…
+            </div>
+          )}
+
+          {predictions.slice(0, 6).map((p) => (
+            <div
+              key={p.place_id}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(p.description);
+                setOpen(false);
+                setPredictions([]);
+              }}
+              style={{
+                padding: 10,
+                fontSize: 13,
+                cursor: "pointer",
+                borderTop: "1px solid #f2f2f2",
+              }}
+            >
+              {p.description}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function BookPage() {
-  const [rideDate, setRideDate] = useState("");
-  const [rideTime, setRideTime] = useState("");
-  const [pickup, setPickup] = useState("");
-  const [dropoff, setDropoff] = useState("");
-
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-
-  // ===== Availability settings =====
+  // ===== Settings =====
   const TIMEZONE = "America/Chicago";
-  const MIN_HOURS_AHEAD = 2; // ✅ 2 hours in advance
-  const DAYS_AHEAD = 14;
+  const MIN_HOURS_AHEAD = 2;
+  const DAYS_AHEAD = 30; // ✅ 30 days in advance
   const START_TIME = "08:00";
   const END_TIME = "22:00";
   const STEP_MINUTES = 15;
 
-  // (Optional) Full-day blocks (YYYY-MM-DD)
+  // Optional blocks (edit these any time)
   const UNAVAILABLE_DATES = useMemo(
     () =>
       new Set([
-        // "2026-01-02",
+        // "2026-01-03",
       ]),
     []
   );
 
-  // (Optional) Block entire weekdays (0=Sun ... 6=Sat)
   const UNAVAILABLE_WEEKDAYS = useMemo(
     () =>
       new Set([
@@ -37,102 +189,44 @@ export default function BookPage() {
     []
   );
 
-  // (Optional) Time blocks by weekday (24h). Example:
-  // 1 (Mon): [{start:"12:00", end:"13:00"}]
   const TIME_BLOCKS_BY_WEEKDAY = useMemo(
     () => ({
-      // 1: [{ start: "12:00", end: "13:00" }],
+      // 1: [{ start: "12:00", end: "13:30" }], // Monday lunch blocked
     }),
     []
   );
 
-  // ===== Helpers =====
-  function chicagoNowDate() {
-    // Create a Date object representing "now" in Chicago
-    return new Date(new Date().toLocaleString("en-US", { timeZone: TIMEZONE }));
-  }
+  // ===== State =====
+  const [rideDate, setRideDate] = useState("");
+  const [rideTime, setRideTime] = useState("");
 
-  function toIsoDateInChicago(d) {
-    // YYYY-MM-DD in Chicago
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: TIMEZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
-  }
+  const [pickup, setPickup] = useState("");
+  const [dropoff, setDropoff] = useState("");
 
-  function weekdayIndexInChicago(isoDate) {
-    // Noon avoids DST edge cases
-    const d = new Date(`${isoDate}T12:00:00`);
-    const weekday = new Intl.DateTimeFormat("en-US", {
-      timeZone: TIMEZONE,
-      weekday: "short",
-    }).format(d);
-    const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-    return map[weekday];
-  }
+  // Stops: freeform (one per line) – simple + mobile friendly
+  const [stopsText, setStopsText] = useState("");
 
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  // ===== Availability =====
   function isDayUnavailable(isoDate) {
     if (!isoDate) return false;
     if (UNAVAILABLE_DATES.has(isoDate)) return true;
-    const wd = weekdayIndexInChicago(isoDate);
+    const wd = weekdayIndexInChicago(isoDate, TIMEZONE);
     if (UNAVAILABLE_WEEKDAYS.has(wd)) return true;
     return false;
-  }
-
-  function generateNextDays(count = DAYS_AHEAD) {
-    const now = chicagoNowDate();
-    const labelFmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: TIMEZONE,
-      weekday: "short",
-      month: "short",
-      day: "2-digit",
-    });
-
-    const days = [];
-    for (let i = 0; i < count; i++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + i);
-      const iso = toIsoDateInChicago(d);
-      const label = labelFmt.format(d);
-      days.push({ iso, label });
-    }
-    return days;
-  }
-
-  function generateTimes(start = START_TIME, end = END_TIME, step = STEP_MINUTES) {
-    const [sh, sm] = start.split(":").map(Number);
-    const [eh, em] = end.split(":").map(Number);
-
-    let t = sh * 60 + sm;
-    const endT = eh * 60 + em;
-
-    const times = [];
-    while (t <= endT) {
-      const hh = String(Math.floor(t / 60)).padStart(2, "0");
-      const mm = String(t % 60).padStart(2, "0");
-      times.push(`${hh}:${mm}`);
-      t += step;
-    }
-    return times;
-  }
-
-  function formatTimeLabel(time24) {
-    const [h, m] = time24.split(":").map(Number);
-    const suffix = h >= 12 ? "PM" : "AM";
-    const hr = ((h + 11) % 12) + 1;
-    return `${hr}:${String(m).padStart(2, "0")} ${suffix}`;
   }
 
   function earliestAllowedTimeForDate(isoDate) {
     if (!isoDate) return null;
 
-    const now = chicagoNowDate();
-    const nowIso = toIsoDateInChicago(now);
+    const now = chicagoNow(TIMEZONE);
+    const todayIso = toIsoDateInChicago(now, TIMEZONE);
 
-    // Only enforce for today
-    if (isoDate !== nowIso) return null;
+    // Only enforce for same-day bookings
+    if (isoDate !== todayIso) return null;
 
     const cutoff = new Date(now.getTime() + MIN_HOURS_AHEAD * 60 * 60 * 1000);
     const hh = String(cutoff.getHours()).padStart(2, "0");
@@ -144,23 +238,62 @@ export default function BookPage() {
     if (!isoDate || !time24) return false;
     if (isDayUnavailable(isoDate)) return true;
 
-    const wd = weekdayIndexInChicago(isoDate);
+    // Weekly time blocks
+    const wd = weekdayIndexInChicago(isoDate, TIMEZONE);
     const blocks = TIME_BLOCKS_BY_WEEKDAY[wd] || [];
     for (const b of blocks) {
       if (time24 >= b.start && time24 < b.end) return true;
     }
 
-    // ⏱ 2-hour rule for same-day bookings
+    // 2-hour rule (same day)
     const earliest = earliestAllowedTimeForDate(isoDate);
     if (earliest && time24 < earliest) return true;
 
     return false;
   }
 
-  const days = useMemo(() => generateNextDays(DAYS_AHEAD), []);
-  const times = useMemo(() => generateTimes(START_TIME, END_TIME, STEP_MINUTES), []);
+  // Days dropdown
+  const days = useMemo(() => {
+    const now = chicagoNow(TIMEZONE);
+    const labelFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: TIMEZONE,
+      weekday: "short",
+      month: "short",
+      day: "2-digit",
+    });
 
-  const canQuote = !!pickup && !!dropoff && !!rideDate && !!rideTime && !loading;
+    const list = [];
+    for (let i = 0; i < DAYS_AHEAD; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      list.push({
+        iso: toIsoDateInChicago(d, TIMEZONE),
+        label: labelFmt.format(d),
+      });
+    }
+    return list;
+  }, [DAYS_AHEAD]);
+
+  const times = useMemo(
+    () => generateTimes(START_TIME, END_TIME, STEP_MINUTES),
+    []
+  );
+
+  const stops = useMemo(() => {
+    return stopsText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }, [stopsText]);
+
+  const canQuote =
+    !!rideDate &&
+    !!rideTime &&
+    !!pickup &&
+    !!dropoff &&
+    !loading &&
+    !isDayUnavailable(rideDate) &&
+    !isTimeBlocked(rideDate, rideTime);
 
   // ===== Actions =====
   async function getQuote() {
@@ -172,8 +305,13 @@ export default function BookPage() {
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // We keep API compatible (pickup/dropoff), but also include date/time for later use
-        body: JSON.stringify({ pickup, dropoff, rideDate, rideTime }),
+        body: JSON.stringify({
+          pickup,
+          dropoff,
+          stops,     // ✅ include stops
+          rideDate,  // ✅ include booking info for future
+          rideTime,
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -197,17 +335,21 @@ export default function BookPage() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // amount only is required by your current API; date/time included for future upgrades
-        body: JSON.stringify({ amount: result.price, rideDate, rideTime, pickup, dropoff }),
+        body: JSON.stringify({
+          amount: result.price,
+          pickup,
+          dropoff,
+          stops,
+          rideDate,
+          rideTime,
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || data.message || `Checkout failed (${res.status})`);
       }
-      if (!data.url) {
-        throw new Error("Checkout failed: missing Stripe URL");
-      }
+      if (!data.url) throw new Error("Checkout failed: missing Stripe URL");
 
       window.location.assign(data.url);
     } catch (e) {
@@ -298,37 +440,44 @@ export default function BookPage() {
       </select>
 
       <p style={{ fontSize: 12, opacity: 0.7, marginTop: 0, marginBottom: 14 }}>
-        Bookings must be made at least 2 hours in advance.
+        Book at least 2 hours in advance. You can book up to 30 days ahead.
       </p>
 
-      {/* ADDRESSES */}
-      <input
+      {/* ADDRESSES (with autocomplete) */}
+      <AddressInput
+        label="Pickup"
         placeholder="Pickup address"
         value={pickup}
-        onChange={(e) => setPickup(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 10,
-          marginBottom: 10,
-          textAlign: "center",
-          borderRadius: 10,
-          border: "1px solid #ddd",
-        }}
+        onChange={setPickup}
       />
 
-      <input
+      <AddressInput
+        label="Dropoff"
         placeholder="Dropoff address"
         value={dropoff}
-        onChange={(e) => setDropoff(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 10,
-          marginBottom: 12,
-          textAlign: "center",
-          borderRadius: 10,
-          border: "1px solid #ddd",
-        }}
+        onChange={setDropoff}
       />
+
+      {/* STOPS */}
+      <div style={{ width: "100%", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+          Stops (optional — one per line)
+        </div>
+        <textarea
+          value={stopsText}
+          onChange={(e) => setStopsText(e.target.value)}
+          placeholder={"Add stops here...\nExample:\n1) 123 Main St\n2) 456 Oak Ave"}
+          rows={4}
+          style={{
+            width: "100%",
+            padding: 10,
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            textAlign: "left",
+            resize: "vertical",
+          }}
+        />
+      </div>
 
       {/* GET PRICE */}
       <button
