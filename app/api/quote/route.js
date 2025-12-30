@@ -28,7 +28,7 @@ export async function POST(req) {
     const minimumCharge = Number(process.env.MINIMUM_CHARGE || 10);
 
     // Use current time (traffic-aware)
-    const departureTime = new Date().toISOString();
+    const departureTime = new Date(Date.now() + 2 * 60 * 1000).toISOString();
 
     const payload = {
       origin: { address: pickup },
