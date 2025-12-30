@@ -84,7 +84,9 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
   return (
     <div style={{ width: "100%", marginBottom: 10, position: "relative" }}>
       {label ? (
-        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>{label}</div>
+        <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6, color: "#cfcfcf" }}>
+          {label}
+        </div>
       ) : null}
 
       <input
@@ -109,14 +111,18 @@ function AddressInput({ label, placeholder, value, onChange, disabled }) {
           padding: 10,
           textAlign: "center",
           borderRadius: 10,
-          border: "1px solid #ddd",
+          border: "1px solid rgba(255,255,255,0.35)",
           outline: "none",
-          color: "#111",
-          WebkitTextFillColor: "#111",
+          background: "transparent",
+
+          // ✅ readable on dark background
+          color: "#f5f5f5",
+          WebkitTextFillColor: "#f5f5f5",
           fontWeight: 600,
         }}
       />
 
+      {/* Autocomplete dropdown (keep dark text on white dropdown) */}
       {open && (loading || predictions.length > 0) && (
         <div
           style={{
@@ -217,7 +223,6 @@ export default function BookPage() {
     if (!isoDate) return null;
     const now = chicagoNow(TZ);
     const todayIso = toIsoDateInChicago(now, TZ);
-
     if (isoDate !== todayIso) return null;
 
     const cutoff = new Date(now.getTime() + MIN_HOURS_AHEAD * 60 * 60 * 1000);
@@ -328,9 +333,7 @@ export default function BookPage() {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || data.message || `Checkout failed (${res.status})`);
-      }
+      if (!res.ok) throw new Error(data.error || data.message || `Checkout failed (${res.status})`);
       if (!data.url) throw new Error("Checkout failed: missing Stripe URL");
       window.location.assign(data.url);
     } catch (e) {
@@ -339,16 +342,17 @@ export default function BookPage() {
     }
   }
 
-  // Select style (does NOT force background color)
+  // ✅ Select style: selected value light on dark background
   const selectStyle = {
     width: "100%",
     padding: 12,
     borderRadius: 10,
     textAlign: "center",
-    border: "1px solid #ddd",
+    border: "1px solid rgba(255,255,255,0.35)",
     cursor: "pointer",
-    color: "#111",
-    WebkitTextFillColor: "#111",
+    background: "transparent",
+    color: "#f5f5f5",
+    WebkitTextFillColor: "#f5f5f5",
     fontWeight: 800,
   };
 
@@ -370,8 +374,17 @@ export default function BookPage() {
         fontFamily: "sans-serif",
         textAlign: "center",
         padding: "0 16px",
+        color: "#eaeaea",
       }}
     >
+      {/* Placeholder color for all inputs */}
+      <style jsx global>{`
+        input::placeholder {
+          color: #6f6f6f;
+          opacity: 1;
+        }
+      `}</style>
+
       {/* Header */}
       <div style={{ marginBottom: 18 }}>
         <img
@@ -393,11 +406,13 @@ export default function BookPage() {
         }}
         style={{ ...selectStyle, marginBottom: 10 }}
       >
-        <option value="">Select day</option>
+        <option value="" style={{ color: "#111" }}>
+          Select day
+        </option>
         {days.map((d) => {
           const blocked = isDayUnavailable(d.iso);
           return (
-            <option key={d.iso} value={d.iso} disabled={blocked}>
+            <option key={d.iso} value={d.iso} disabled={blocked} style={{ color: "#111" }}>
               {d.label} {blocked ? "— Unavailable" : ""}
             </option>
           );
@@ -416,11 +431,13 @@ export default function BookPage() {
           opacity: !rideDate || isDayUnavailable(rideDate) ? 0.6 : 1,
         }}
       >
-        <option value="">Select time</option>
+        <option value="" style={{ color: "#111" }}>
+          Select time
+        </option>
         {times.map((t) => {
           const blocked = isTimeBlocked(rideDate, t);
           return (
-            <option key={t} value={t} disabled={blocked}>
+            <option key={t} value={t} disabled={blocked} style={{ color: "#111" }}>
               {formatTimeLabel(t)} {blocked ? "— Unavailable" : ""}
             </option>
           );
@@ -436,10 +453,18 @@ export default function BookPage() {
         onChange={(e) => setAdditionalPassengers(e.target.value)}
         style={{ ...selectStyle, marginBottom: 6 }}
       >
-        <option value="0">Just me</option>
-        <option value="1">+1 passenger</option>
-        <option value="2">+2 passengers</option>
-        <option value="3">+3 passengers</option>
+        <option value="0" style={{ color: "#111" }}>
+          Just me
+        </option>
+        <option value="1" style={{ color: "#111" }}>
+          +1 passenger
+        </option>
+        <option value="2" style={{ color: "#111" }}>
+          +2 passengers
+        </option>
+        <option value="3" style={{ color: "#111" }}>
+          +3 passengers
+        </option>
       </select>
 
       <p style={{ fontSize: 12, opacity: 0.7, marginTop: 0, marginBottom: 14 }}>
@@ -474,7 +499,8 @@ export default function BookPage() {
                 cursor: "pointer",
                 fontWeight: 900,
                 fontSize: 18,
-                opacity: 0.7,
+                opacity: 0.8,
+                color: "#eaeaea",
               }}
               aria-label="Remove stop"
               title="Remove stop"
@@ -491,11 +517,12 @@ export default function BookPage() {
             width: "100%",
             padding: 12,
             borderRadius: 10,
-            border: "1px dashed #999",
+            border: "1px dashed rgba(255,255,255,0.45)",
             background: "transparent",
             cursor: "pointer",
             fontWeight: 900,
             marginBottom: 10,
+            color: "#eaeaea",
           }}
         >
           + Add Stop
@@ -510,27 +537,28 @@ export default function BookPage() {
           width: "100%",
           padding: 14,
           borderRadius: 10,
-          border: "2px solid #000",
-          background: canQuote ? "#000" : "#e5e5e5",
-          color: canQuote ? "#fff" : "#666",
+          border: "2px solid rgba(255,255,255,0.6)",
+          background: canQuote ? "#e5e5e5" : "rgba(255,255,255,0.25)",
+          color: canQuote ? "#111" : "#cfcfcf",
           fontSize: 16,
-          fontWeight: 700,
+          fontWeight: 800,
           cursor: canQuote ? "pointer" : "not-allowed",
-          transition: "transform 0.05s ease, opacity 0.2s ease",
         }}
-        onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
-        onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
       >
         {loading ? "Calculating..." : "Get Price"}
       </button>
 
-      {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
+      {error && <p style={{ color: "#ff6b6b", marginTop: 12 }}>{error}</p>}
 
       {/* Result + Pay */}
       {result && (
         <div style={{ marginTop: 20 }}>
-          <p style={{ marginBottom: 8 }}>Billable Time: {result.billableMinutes} minutes</p>
-          <h2 style={{ margin: "0 0 10px" }}>${Number(result.price).toFixed(2)}</h2>
+          <p style={{ marginBottom: 8, color: "#eaeaea" }}>
+            Billable Time: {result.billableMinutes} minutes
+          </p>
+          <h2 style={{ margin: "0 0 10px", color: "#eaeaea" }}>
+            ${Number(result.price).toFixed(2)}
+          </h2>
 
           <button
             onClick={handlePayNow}
@@ -539,24 +567,13 @@ export default function BookPage() {
               width: "100%",
               padding: 14,
               borderRadius: 10,
-              border: "2px solid #000",
+              border: "2px solid rgba(255,255,255,0.6)",
               background: "transparent",
-              color: "#000",
+              color: "#eaeaea",
               fontSize: 16,
-              fontWeight: 700,
+              fontWeight: 800,
               cursor: "pointer",
-              transition: "background-color 0.2s, color 0.2s, transform 0.05s",
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#000";
-              e.currentTarget.style.color = "#fff";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "#000";
-            }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
           >
             Pay Now
           </button>
