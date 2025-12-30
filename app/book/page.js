@@ -35,7 +35,15 @@ export default function BookPage() {
   }
 
   return (
-    <main style={{ maxWidth: 480, margin: "40px auto", fontFamily: "sans-serif" }}>
+   <main
+  style={{
+    maxWidth: 480,
+    margin: "40px auto",
+    fontFamily: "sans-serif",
+    textAlign: "center",
+    padding: "0 16px",
+  }}
+>
       <h1>Book a Ride</h1>
 
       <input
