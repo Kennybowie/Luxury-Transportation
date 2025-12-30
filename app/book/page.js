@@ -4,24 +4,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 /* ---------- Helpers ---------- */
 const pad2 = (n) => String(n).padStart(2, "0");
 
-function getTodayYMD() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
 function buildDateOptions(days = 30) {
   const out = [];
   const base = new Date();
   for (let i = 0; i < days; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    const ymd = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+    // value must be stable for backend (YYYY-MM-DD)
+    const value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+    // label should be clean (NO year, NO parentheses)
     const label = d.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
     });
-    out.push({ value: ymd, label: `${label} (${ymd})` });
+
+    out.push({ value, label });
   }
   return out;
 }
@@ -36,13 +36,13 @@ function buildTimeOptions(step = 15) {
   return out;
 }
 
+function todayYMD() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
 /* ---------- Autocomplete Input (uses your /api/places) ---------- */
-function AutocompleteInput({
-  value,
-  onChange,
-  placeholder,
-  inputStyle,
-}) {
+function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
   const wrapRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [preds, setPreds] = useState([]);
@@ -151,8 +151,8 @@ function AutocompleteInput({
                 background: idx === activeIdx ? "#f2f2f2" : "#fff",
                 padding: "10px 12px",
                 cursor: "pointer",
-                color: "#111",         // ✅ readable dropdown
-                fontWeight: 600,       // ✅ readable dropdown
+                color: "#111", // readable dropdown
+                fontWeight: 600,
                 fontSize: 14,
               }}
             >
@@ -166,16 +166,19 @@ function AutocompleteInput({
 }
 
 export default function BookPage() {
+  // scheduling
+  const [rideDate, setRideDate] = useState("");
+  const [rideTime, setRideTime] = useState("");
+
+  // route
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [stops, setStops] = useState([]);
 
-  const [rideDate, setRideDate] = useState("");
-  const [rideTime, setRideTime] = useState("");
-
   // additional passengers (0–3)
   const [passengers, setPassengers] = useState(0);
 
+  // quote/payment
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -183,12 +186,12 @@ export default function BookPage() {
   const dateOptions = useMemo(() => buildDateOptions(30), []);
   const timeOptions = useMemo(() => buildTimeOptions(15), []);
 
+  // 2 hours in advance: disable times only if selected date is today
   const disabledTimes = useMemo(() => {
     const set = new Set();
     if (!rideDate) return set;
 
-    const today = getTodayYMD();
-    if (rideDate !== today) return set;
+    if (rideDate !== todayYMD()) return set;
 
     const now = new Date();
     const min = new Date(now.getTime() + 2 * 60 * 60 * 1000);
@@ -275,7 +278,7 @@ export default function BookPage() {
     }
   }
 
-  // --- Styles (kept simple like your original) ---
+  /* --- Simple styling like your original --- */
   const mainStyle = {
     maxWidth: 480,
     margin: "40px auto",
@@ -292,7 +295,7 @@ export default function BookPage() {
     borderRadius: 10,
     border: "1px solid #cfcfcf",
     fontSize: 14,
-    color: "#555", // ✅ makes typed/selected text lighter (not super dark)
+    color: "#555",
     outline: "none",
   };
 
@@ -330,7 +333,7 @@ export default function BookPage() {
 
   return (
     <main style={mainStyle}>
-      {/* keep your logo + subtitle exactly like before */}
+      {/* logo + subtitle unchanged */}
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <img
           src="/tempmotion-logo.jpg"
@@ -347,7 +350,46 @@ export default function BookPage() {
         </div>
       </div>
 
-      {/* Pickup/Dropoff with autocomplete */}
+      {/* ✅ Date/Time FIRST */}
+      <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={selectStyle}>
+        <option value="">Select date</option>
+        {dateOptions.map((d) => (
+          <option key={d.value} value={d.value}>
+            {d.label}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={rideTime}
+        onChange={(e) => setRideTime(e.target.value)}
+        style={selectStyle}
+        disabled={!rideDate}
+      >
+        <option value="">{!rideDate ? "Select date first" : "Select time"}</option>
+        {timeOptions.map((t) => {
+          const disabled = disabledTimes.has(t);
+          return (
+            <option key={t} value={t} disabled={disabled}>
+              {disabled ? `${t} (unavailable)` : t}
+            </option>
+          );
+        })}
+      </select>
+
+      {/* Additional passengers */}
+      <select value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} style={selectStyle}>
+        <option value={0}>Additional passengers: 0</option>
+        <option value={1}>Additional passengers: 1</option>
+        <option value={2}>Additional passengers: 2</option>
+        <option value={3}>Additional passengers: 3</option>
+      </select>
+
+      <p style={{ fontSize: 12, opacity: 0.8, margin: "6px 0 14px" }}>
+        Must book at least <b>2 hours</b> in advance.
+      </p>
+
+      {/* ✅ Addresses AFTER date/time */}
       <AutocompleteInput
         placeholder="Pickup address"
         value={pickup}
@@ -408,44 +450,6 @@ export default function BookPage() {
           </button>
         </div>
       ))}
-
-      {/* Date / Time / Passengers */}
-      <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={selectStyle}>
-        <option value="">Select date (next 30 days)</option>
-        {dateOptions.map((d) => (
-          <option key={d.value} value={d.value}>
-            {d.label}
-          </option>
-        ))}
-      </select>
-
-      <select
-        value={rideTime}
-        onChange={(e) => setRideTime(e.target.value)}
-        style={selectStyle}
-        disabled={!rideDate}
-      >
-        <option value="">{!rideDate ? "Select date first" : "Select time (15-min increments)"}</option>
-        {timeOptions.map((t) => {
-          const disabled = disabledTimes.has(t);
-          return (
-            <option key={t} value={t} disabled={disabled}>
-              {disabled ? `${t} (unavailable)` : t}
-            </option>
-          );
-        })}
-      </select>
-
-      <select value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} style={selectStyle}>
-        <option value={0}>Additional passengers: 0</option>
-        <option value={1}>Additional passengers: 1</option>
-        <option value={2}>Additional passengers: 2</option>
-        <option value={3}>Additional passengers: 3</option>
-      </select>
-
-      <p style={{ fontSize: 12, opacity: 0.8, margin: "6px 0 14px" }}>
-        Must book at least <b>2 hours</b> in advance.
-      </p>
 
       {/* Get Price */}
       <button
