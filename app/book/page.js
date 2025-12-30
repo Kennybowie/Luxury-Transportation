@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 
+/** ---------- Helpers (time + formatting) ---------- */
 function formatTimeLabel(time24) {
   const [h, m] = time24.split(":").map(Number);
   const suffix = h >= 12 ? "PM" : "AM";
@@ -38,6 +39,7 @@ function toIsoDateInChicago(d, TIMEZONE) {
 }
 
 function weekdayIndexInChicago(isoDate, TIMEZONE) {
+  // noon avoids DST edge cases
   const d = new Date(`${isoDate}T12:00:00`);
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: TIMEZONE,
@@ -47,13 +49,8 @@ function weekdayIndexInChicago(isoDate, TIMEZONE) {
   return map[weekday];
 }
 
-function AddressInput({
-  label,
-  placeholder,
-  value,
-  onChange,
-  disabled,
-}) {
+/** ---------- Address Input w/ autocomplete ---------- */
+function AddressInput({ label, placeholder, value, onChange, disabled }) {
   const [open, setOpen] = useState(false);
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -74,7 +71,7 @@ function AddressInput({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Autocomplete failed");
 
-      // Only apply if it matches latest query (prevents flicker)
+      // prevent flicker if user types fast
       if (lastQueryRef.current === query) {
         setPredictions(data.predictions || []);
       }
@@ -101,10 +98,7 @@ function AddressInput({
           fetchPredictions(e.target.value);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // Delay close so click selection works
-          setTimeout(() => setOpen(false), 150);
-        }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
         style={{
           width: "100%",
           padding: 10,
@@ -112,6 +106,9 @@ function AddressInput({
           borderRadius: 10,
           border: "1px solid #ddd",
           outline: "none",
+          backgroundColor: "#fff",
+          color: "#000",
+          WebkitTextFillColor: "#000",
         }}
       />
 
@@ -163,6 +160,7 @@ function AddressInput({
   );
 }
 
+/** ---------- Page ---------- */
 export default function BookPage() {
   // ===== Settings =====
   const TIMEZONE = "America/Chicago";
@@ -172,7 +170,7 @@ export default function BookPage() {
   const END_TIME = "22:00";
   const STEP_MINUTES = 15;
 
-  // Optional blocks (edit these any time)
+  // Optional blocks (edit anytime)
   const UNAVAILABLE_DATES = useMemo(
     () =>
       new Set([
@@ -199,11 +197,8 @@ export default function BookPage() {
   // ===== State =====
   const [rideDate, setRideDate] = useState("");
   const [rideTime, setRideTime] = useState("");
-
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
-
-  // Stops: freeform (one per line) – simple + mobile friendly
   const [stopsText, setStopsText] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -225,7 +220,7 @@ export default function BookPage() {
     const now = chicagoNow(TIMEZONE);
     const todayIso = toIsoDateInChicago(now, TIMEZONE);
 
-    // Only enforce for same-day bookings
+    // Only enforce 2-hour rule for same-day bookings
     if (isoDate !== todayIso) return null;
 
     const cutoff = new Date(now.getTime() + MIN_HOURS_AHEAD * 60 * 60 * 1000);
@@ -238,21 +233,19 @@ export default function BookPage() {
     if (!isoDate || !time24) return false;
     if (isDayUnavailable(isoDate)) return true;
 
-    // Weekly time blocks
     const wd = weekdayIndexInChicago(isoDate, TIMEZONE);
     const blocks = TIME_BLOCKS_BY_WEEKDAY[wd] || [];
     for (const b of blocks) {
       if (time24 >= b.start && time24 < b.end) return true;
     }
 
-    // 2-hour rule (same day)
     const earliest = earliestAllowedTimeForDate(isoDate);
     if (earliest && time24 < earliest) return true;
 
     return false;
   }
 
-  // Days dropdown
+  // Build dropdown day list
   const days = useMemo(() => {
     const now = chicagoNow(TIMEZONE);
     const labelFmt = new Intl.DateTimeFormat("en-US", {
@@ -274,10 +267,7 @@ export default function BookPage() {
     return list;
   }, [DAYS_AHEAD]);
 
-  const times = useMemo(
-    () => generateTimes(START_TIME, END_TIME, STEP_MINUTES),
-    []
-  );
+  const times = useMemo(() => generateTimes(START_TIME, END_TIME, STEP_MINUTES), []);
 
   const stops = useMemo(() => {
     return stopsText
@@ -308,8 +298,8 @@ export default function BookPage() {
         body: JSON.stringify({
           pickup,
           dropoff,
-          stops,     // ✅ include stops
-          rideDate,  // ✅ include booking info for future
+          stops,
+          rideDate,
           rideTime,
         }),
       });
@@ -358,6 +348,20 @@ export default function BookPage() {
     }
   }
 
+  // Shared style fixes for iPhone/Safari light text in select
+  const selectStyle = {
+    width: "100%",
+    padding: 12,
+    borderRadius: 10,
+    textAlign: "center",
+    border: "1px solid #ddd",
+    cursor: "pointer",
+    backgroundColor: "#fff",
+    color: "#000",
+    WebkitTextFillColor: "#000",
+    fontWeight: 600,
+  };
+
   return (
     <main
       style={{
@@ -392,15 +396,7 @@ export default function BookPage() {
           setRideDate(e.target.value);
           setRideTime("");
         }}
-        style={{
-          width: "100%",
-          padding: 12,
-          marginBottom: 10,
-          borderRadius: 10,
-          textAlign: "center",
-          border: "1px solid #ddd",
-          cursor: "pointer",
-        }}
+        style={{ ...selectStyle, marginBottom: 10 }}
       >
         <option value="">Select day</option>
         {days.map((d) => {
@@ -418,14 +414,10 @@ export default function BookPage() {
         onChange={(e) => setRideTime(e.target.value)}
         disabled={!rideDate || isDayUnavailable(rideDate)}
         style={{
-          width: "100%",
-          padding: 12,
+          ...selectStyle,
           marginBottom: 6,
-          borderRadius: 10,
-          textAlign: "center",
-          border: "1px solid #ddd",
           cursor: !rideDate || isDayUnavailable(rideDate) ? "not-allowed" : "pointer",
-          opacity: !rideDate || isDayUnavailable(rideDate) ? 0.55 : 1,
+          opacity: !rideDate || isDayUnavailable(rideDate) ? 0.6 : 1,
         }}
       >
         <option value="">Select time</option>
@@ -444,19 +436,8 @@ export default function BookPage() {
       </p>
 
       {/* ADDRESSES (with autocomplete) */}
-      <AddressInput
-        label="Pickup"
-        placeholder="Pickup address"
-        value={pickup}
-        onChange={setPickup}
-      />
-
-      <AddressInput
-        label="Dropoff"
-        placeholder="Dropoff address"
-        value={dropoff}
-        onChange={setDropoff}
-      />
+      <AddressInput label="Pickup" placeholder="Pickup address" value={pickup} onChange={setPickup} />
+      <AddressInput label="Dropoff" placeholder="Dropoff address" value={dropoff} onChange={setDropoff} />
 
       {/* STOPS */}
       <div style={{ width: "100%", marginBottom: 12 }}>
@@ -475,6 +456,9 @@ export default function BookPage() {
             border: "1px solid #ddd",
             textAlign: "left",
             resize: "vertical",
+            backgroundColor: "#fff",
+            color: "#000",
+            WebkitTextFillColor: "#000",
           }}
         />
       </div>
@@ -506,7 +490,9 @@ export default function BookPage() {
       {/* RESULT + PAY */}
       {result && (
         <div style={{ marginTop: 20 }}>
-          <p style={{ marginBottom: 8 }}>Billable Time: {result.billableMinutes} minutes</p>
+          <p style={{ marginBottom: 8 }}>
+            Billable Time: {result.billableMinutes} minutes
+          </p>
           <h2 style={{ margin: "0 0 10px" }}>${Number(result.price).toFixed(2)}</h2>
 
           <button
