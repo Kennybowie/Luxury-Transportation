@@ -561,22 +561,65 @@ export default function BookPage() {
           </h2>
 
           <button
-            onClick={handlePayNow}
-            style={{
-              marginTop: 12,
-              width: "100%",
-              padding: 14,
-              borderRadius: 10,
-              border: "2px solid rgba(255,255,255,0.6)",
-              background: "transparent",
-              color: "#eaeaea",
-              fontSize: 16,
-              fontWeight: 800,
-              cursor: "pointer",
-            }}
-          >
-            Pay Now
-          </button>
+  onClick={async () => {
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: result.price,
+
+          // 👇 BOOKING DETAILS (THIS FIXES NULLS)
+          name,
+          email,
+          rideDate,
+          rideTime,
+          passengers,
+          pickup,
+          dropoff,
+          stops,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Checkout failed");
+      }
+
+      // 🚀 Redirect to Stripe Checkout
+      window.location.href = data.url;
+    } catch (e) {
+      alert(e.message);
+      console.error(e);
+    }
+  }}
+  style={{
+    marginTop: 12,
+    width: "100%",
+    padding: 14,
+    borderRadius: 10,
+    border: "2px solid #000",
+    background: "#fff",
+    color: "#000",
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "background-color 0.2s, color 0.2s, transform 0.05s",
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.backgroundColor = "#000";
+    e.currentTarget.style.color = "#fff";
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.backgroundColor = "#fff";
+    e.currentTarget.style.color = "#000";
+  }}
+  onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
+  onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+>
+  Pay Now
+</button>
         </div>
       )}
     </main>
