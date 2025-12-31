@@ -26,9 +26,7 @@ function buildDateOptions(days = 30) {
 function buildTimeOptions(step = 15) {
   const out = [];
   for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += step) {
-      out.push(`${pad2(h)}:${pad2(m)}`);
-    }
+    for (let m = 0; m < 60; m += step) out.push(`${pad2(h)}:${pad2(m)}`);
   }
   return out;
 }
@@ -155,8 +153,8 @@ function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
                 background: idx === activeIdx ? "#f2f2f2" : "#fff",
                 padding: "10px 12px",
                 cursor: "pointer",
-                color: "#111",        // ✅ dropdown items visible
-                fontWeight: 700,      // ✅ darker/bolder
+                color: "#111",
+                fontWeight: 700,
                 fontSize: 14,
               }}
             >
@@ -291,7 +289,7 @@ export default function BookPage() {
     padding: "0 16px",
   };
 
-  // ✅ typed text should be WHITE (pickup/dropoff/stops)
+  // typed text white
   const inputStyle = {
     width: "100%",
     padding: 12,
@@ -305,25 +303,26 @@ export default function BookPage() {
     outline: "none",
   };
 
-  // selects look consistent
-  const selectStyle = {
-    ...inputStyle,
-  };
+  const selectStyle = { ...inputStyle };
 
-  const primaryBtnStyle = {
+  // ✅ Get Price should be white background w/ black text
+  const canQuote = !loading && pickup && dropoff && rideDate && rideTime;
+
+  const getPriceBtnStyle = {
     width: "100%",
     padding: 14,
     borderRadius: 10,
     border: "2px solid #000",
-    background: loading || !pickup || !dropoff || !rideDate || !rideTime ? "#e5e5e5" : "#000",
-    color: loading || !pickup || !dropoff || !rideDate || !rideTime ? "#666" : "#fff",
+    background: canQuote ? "#fff" : "#e5e5e5",
+    color: canQuote ? "#000" : "#666",
     fontSize: 16,
-    fontWeight: 700,
-    cursor: loading || !pickup || !dropoff || !rideDate || !rideTime ? "not-allowed" : "pointer",
+    fontWeight: 900,
+    cursor: canQuote ? "pointer" : "not-allowed",
     transition: "transform 0.05s ease, opacity 0.2s ease",
+    marginTop: 10,
   };
 
-  const outlineBtnStyle = {
+  const payBtnStyle = {
     marginTop: 12,
     width: "100%",
     padding: 14,
@@ -359,7 +358,9 @@ export default function BookPage() {
             display: "block",
           }}
         />
-        <div style={{ fontSize: 13, letterSpacing: 1, opacity: 0.85, color: "#111" }}>
+
+        {/* ✅ subtitle white */}
+        <div style={{ fontSize: 13, letterSpacing: 1, opacity: 0.9, color: "#fff" }}>
           Private Transportation • Chicago
         </div>
       </div>
@@ -374,7 +375,7 @@ export default function BookPage() {
         ))}
       </select>
 
-      {/* TIME SECOND (AM/PM labels) */}
+      {/* TIME SECOND */}
       <select
         value={rideTime}
         onChange={(e) => setRideTime(e.target.value)}
@@ -392,8 +393,8 @@ export default function BookPage() {
         })}
       </select>
 
-      {/* Must book note directly under time */}
-      <p style={{ fontSize: 12, opacity: 0.85, margin: "0 0 14px", color: "#111" }}>
+      {/* ✅ must book note white */}
+      <p style={{ fontSize: 12, opacity: 0.9, margin: "0 0 14px", color: "#fff" }}>
         Must book at least <b>2 hours</b> in advance.
       </p>
 
@@ -413,11 +414,9 @@ export default function BookPage() {
         inputStyle={inputStyle}
       />
 
-      {/* STOPS BETWEEN pickup and dropoff */}
+      {/* STOPS */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0 6px" }}>
-        <div style={{ fontWeight: 700, opacity: 0.95, color: "#fff" }}>
-          Stops (optional)
-        </div>
+        <div style={{ fontWeight: 700, opacity: 0.95, color: "#fff" }}>Stops (optional)</div>
 
         <button
           type="button"
@@ -429,7 +428,7 @@ export default function BookPage() {
             background: "#fff",
             cursor: "pointer",
             fontWeight: 800,
-            color: "#000", // ✅ Add stop text BLACK
+            color: "#000",
           }}
         >
           + Add stop
@@ -474,33 +473,36 @@ export default function BookPage() {
         inputStyle={inputStyle}
       />
 
-      {/* GET PRICE */}
+      {/* ✅ GET PRICE (white bg / black text) */}
       <button
         onClick={getQuote}
-        disabled={loading || !pickup || !dropoff || !rideDate || !rideTime}
-        style={primaryBtnStyle}
-        onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
-        onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+        disabled={!canQuote}
+        style={getPriceBtnStyle}
+        onMouseDown={(e) => {
+          if (canQuote) e.currentTarget.style.transform = "scale(0.99)";
+        }}
+        onMouseUp={(e) => {
+          if (canQuote) e.currentTarget.style.transform = "scale(1)";
+        }}
       >
         {loading ? "Calculating..." : "Get Price"}
       </button>
 
       {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
 
-      {/* Result + Pay Now */}
       {result && (
         <div style={{ marginTop: 20 }}>
           {"trafficMinutes" in result && (
-            <p style={{ margin: 0, opacity: 0.85, color: "#111" }}>
+            <p style={{ margin: 0, opacity: 0.9, color: "#fff" }}>
               Estimated minutes: <b>{result.trafficMinutes}</b>
             </p>
           )}
 
-          <h2 style={{ marginTop: 8, color: "#111" }}>${Number(result.price).toFixed(2)}</h2>
+          <h2 style={{ marginTop: 8, color: "#fff" }}>${Number(result.price).toFixed(2)}</h2>
 
           <button
             onClick={payNow}
-            style={outlineBtnStyle}
+            style={payBtnStyle}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = "#000";
               e.currentTarget.style.color = "#fff";
