@@ -10,14 +10,12 @@ function buildDateOptions(days = 30) {
   for (let i = 0; i < days; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-
     const value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     const label = d.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
       day: "numeric",
     });
-
     out.push({ value, label });
   }
   return out;
@@ -43,74 +41,25 @@ function todayYMD() {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-/* ---------- Autocomplete Input (uses /api/places) ---------- */
+/* ---------- Autocomplete Input ---------- */
 function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
   const wrapRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [preds, setPreds] = useState([]);
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const lastReqRef = useRef(0);
 
   useEffect(() => {
-    const onDoc = (e) => {
-      if (!wrapRef.current) return;
-      if (!wrapRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  useEffect(() => {
-    const q = (value || "").trim();
-    if (q.length < 2) {
-      setPreds([]);
-      setOpen(false);
-      return;
-    }
-
-    const reqId = Date.now();
-    lastReqRef.current = reqId;
+    const q = value.trim();
+    if (q.length < 2) return setPreds([]);
 
     const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/places?input=${encodeURIComponent(q)}`);
-        const data = await res.json().catch(() => ({}));
-        if (lastReqRef.current !== reqId) return;
-
-        const list = Array.isArray(data?.predictions) ? data.predictions : [];
-        setPreds(list);
-        setOpen(list.length > 0);
-        setActiveIdx(-1);
-      } catch {
-        // ignore
-      }
-    }, 180);
+      const res = await fetch(`/api/places?input=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setPreds(data.predictions || []);
+      setOpen(true);
+    }, 200);
 
     return () => clearTimeout(t);
   }, [value]);
-
-  function choose(desc) {
-    onChange(desc);
-    setOpen(false);
-  }
-
-  function onKeyDown(e) {
-    if (!open || preds.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, preds.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      if (activeIdx >= 0) {
-        e.preventDefault();
-        choose(preds[activeIdx].description);
-      }
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
-  }
 
   return (
     <div style={{ position: "relative" }} ref={wrapRef}>
@@ -118,10 +67,6 @@ function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        onFocus={() => preds.length > 0 && setOpen(true)}
-        onKeyDown={onKeyDown}
-        autoComplete="off"
-        spellCheck={false}
         style={inputStyle}
       />
 
@@ -131,35 +76,28 @@ function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
             position: "absolute",
             left: 0,
             right: 0,
-            top: "46px",
-            zIndex: 50,
             background: "#fff",
-            border: "1px solid #d9d9d9",
             borderRadius: 10,
-            overflow: "hidden",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.10)",
-            textAlign: "left",
+            marginTop: 4,
+            zIndex: 20,
           }}
         >
-          {preds.map((p, idx) => (
-            <button
-              type="button"
-              key={p.place_id || `${p.description}-${idx}`}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => choose(p.description)}
+          {preds.map((p) => (
+            <div
+              key={p.place_id}
+              onClick={() => {
+                onChange(p.description);
+                setOpen(false);
+              }}
               style={{
-                width: "100%",
-                border: "none",
-                background: idx === activeIdx ? "#f2f2f2" : "#fff",
-                padding: "10px 12px",
+                padding: 10,
                 cursor: "pointer",
-                color: "#111",
                 fontWeight: 700,
-                fontSize: 14,
+                color: "#111",
               }}
             >
               {p.description}
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -168,19 +106,18 @@ function AutocompleteInput({ value, onChange, placeholder, inputStyle }) {
 }
 
 export default function BookPage() {
-  // schedule
   const [rideDate, setRideDate] = useState("");
   const [rideTime, setRideTime] = useState("");
 
-  // route fields
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+
   const [pickup, setPickup] = useState("");
   const [stops, setStops] = useState([]);
   const [dropoff, setDropoff] = useState("");
 
-  // additional passengers 0–3
   const [passengers, setPassengers] = useState(0);
 
-  // quote/payment
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -188,40 +125,22 @@ export default function BookPage() {
   const dateOptions = useMemo(() => buildDateOptions(30), []);
   const timeOptions = useMemo(() => buildTimeOptions(15), []);
 
-  // Must book 2 hours in advance: disable times only if date is today
   const disabledTimes = useMemo(() => {
     const set = new Set();
-    if (!rideDate) return set;
     if (rideDate !== todayYMD()) return set;
 
-    const now = new Date();
-    const min = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-
-    const minH = min.getHours();
-    const minM = min.getMinutes();
-
+    const min = new Date(Date.now() + 2 * 60 * 60 * 1000);
     for (const t of timeOptions) {
       const [h, m] = t.split(":").map(Number);
-      if (h < minH || (h === minH && m < minM)) set.add(t);
+      if (h < min.getHours() || (h === min.getHours() && m < min.getMinutes()))
+        set.add(t);
     }
     return set;
   }, [rideDate, timeOptions]);
 
-  function addStop() {
-    setStops((s) => [...s, ""]);
-  }
-  function updateStop(i, val) {
-    setStops((s) => s.map((x, idx) => (idx === i ? val : x)));
-  }
-  function removeStop(i) {
-    setStops((s) => s.filter((_, idx) => idx !== i));
-  }
-
   async function getQuote() {
     setLoading(true);
     setError(null);
-    setResult(null);
-
     try {
       const res = await fetch("/api/quote", {
         method: "POST",
@@ -235,13 +154,8 @@ export default function BookPage() {
           passengers,
         }),
       });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const details = [data.error, data.details, data.message].filter(Boolean).join(" — ");
-        throw new Error(details || "Quote failed");
-      }
-
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Quote failed");
       setResult(data);
     } catch (e) {
       setError(e.message);
@@ -250,274 +164,99 @@ export default function BookPage() {
     }
   }
 
-  async function payNow() {
-    if (!result?.price) return;
-
-    try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: result.price,
-          pickup,
-          dropoff,
-          stops,
-          rideDate,
-          rideTime,
-          passengers,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) {
-        throw new Error(data.error || data.message || `Checkout failed (${res.status})`);
-      }
-
-      window.location.assign(data.url);
-    } catch (e) {
-      alert(e.message);
-      console.error(e);
-    }
-  }
-
-  /* ---------- Styles ---------- */
-  const mainStyle = {
-    maxWidth: 480,
-    margin: "40px auto",
-    fontFamily: "sans-serif",
-    textAlign: "center",
-    padding: "0 16px",
-  };
-
-  // typed text white
   const inputStyle = {
     width: "100%",
     padding: 12,
     marginBottom: 12,
-    textAlign: "center",
     borderRadius: 10,
     border: "1px solid #cfcfcf",
-    fontSize: 14,
+    background: "#111",
     color: "#fff",
-    backgroundColor: "#111",
-    outline: "none",
-  };
-
-  const selectStyle = { ...inputStyle };
-
-  // ✅ Get Price should be white background w/ black text
-  const canQuote = !loading && pickup && dropoff && rideDate && rideTime;
-
-  const getPriceBtnStyle = {
-    width: "100%",
-    padding: 14,
-    borderRadius: 10,
-    border: "2px solid #000",
-    background: canQuote ? "#fff" : "#e5e5e5",
-    color: canQuote ? "#000" : "#666",
-    fontSize: 16,
-    fontWeight: 900,
-    cursor: canQuote ? "pointer" : "not-allowed",
-    transition: "transform 0.05s ease, opacity 0.2s ease",
-    marginTop: 10,
-  };
-
-  const payBtnStyle = {
-    marginTop: 12,
-    width: "100%",
-    padding: 14,
-    borderRadius: 10,
-    border: "2px solid #000",
-    background: "#fff",
-    color: "#000",
-    fontSize: 16,
-    fontWeight: 700,
-    cursor: "pointer",
-    transition: "background-color 0.2s, color 0.2s, transform 0.05s",
+    textAlign: "center",
   };
 
   return (
-    <main style={mainStyle}>
-      {/* Placeholder styling for dark inputs */}
-      <style>{`
-        input::placeholder {
-          color: #bfbfbf;
-          opacity: 1;
-        }
-      `}</style>
-
-      {/* Logo + subtitle */}
-      <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <img
-          src="/tempmotion-logo.jpg"
-          alt="Tempmotion Logo"
-          style={{
-            width: 90,
-            maxWidth: "100%",
-            margin: "0 auto 6px",
-            display: "block",
-          }}
-        />
-
-        {/* ✅ subtitle white */}
-        <div style={{ fontSize: 13, letterSpacing: 1, opacity: 0.9, color: "#fff" }}>
-          Private Transportation • Chicago
-        </div>
+    <main style={{ maxWidth: 480, margin: "40px auto", padding: 16, textAlign: "center" }}>
+      <img src="/tempmotion-logo.jpg" style={{ width: 90 }} />
+      <div style={{ color: "#fff", marginBottom: 20 }}>
+        Private Transportation • Chicago
       </div>
 
-      {/* DATE FIRST */}
-      <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={selectStyle}>
+      <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={inputStyle}>
         <option value="">Select date</option>
         {dateOptions.map((d) => (
-          <option key={d.value} value={d.value}>
-            {d.label}
+          <option key={d.value} value={d.value}>{d.label}</option>
+        ))}
+      </select>
+
+      <select value={rideTime} onChange={(e) => setRideTime(e.target.value)} style={inputStyle}>
+        <option value="">Select time</option>
+        {timeOptions.map((t) => (
+          <option key={t} value={t} disabled={disabledTimes.has(t)}>
+            {formatTimeLabel(t)}
           </option>
         ))}
       </select>
 
-      {/* TIME SECOND */}
-      <select
-        value={rideTime}
-        onChange={(e) => setRideTime(e.target.value)}
-        style={selectStyle}
-        disabled={!rideDate}
-      >
-        <option value="">{!rideDate ? "Select date first" : "Select time"}</option>
-        {timeOptions.map((t) => {
-          const disabled = disabledTimes.has(t);
-          return (
-            <option key={t} value={t} disabled={disabled}>
-              {disabled ? `${formatTimeLabel(t)} (unavailable)` : formatTimeLabel(t)}
-            </option>
-          );
-        })}
-      </select>
-
-      {/* ✅ must book note white */}
-      <p style={{ fontSize: 12, opacity: 0.9, margin: "0 0 14px", color: "#fff" }}>
+      <p style={{ color: "#fff", fontSize: 12 }}>
         Must book at least <b>2 hours</b> in advance.
       </p>
 
-      {/* Additional passengers */}
-      <select value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} style={selectStyle}>
-        <option value={0}>Additional passengers: 0</option>
-        <option value={1}>Additional passengers: 1</option>
-        <option value={2}>Additional passengers: 2</option>
-        <option value={3}>Additional passengers: 3</option>
-      </select>
+      <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+      <input placeholder="Your phone number" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
 
-      {/* PICKUP */}
-      <AutocompleteInput
-        placeholder="Pickup address"
-        value={pickup}
-        onChange={setPickup}
-        inputStyle={inputStyle}
-      />
+      <AutocompleteInput placeholder="Pickup address" value={pickup} onChange={setPickup} inputStyle={inputStyle} />
 
-      {/* STOPS */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "6px 0 6px" }}>
-        <div style={{ fontWeight: 700, opacity: 0.95, color: "#fff" }}>Stops (optional)</div>
-
-        <button
-          type="button"
-          onClick={addStop}
-          style={{
-            padding: "8px 10px",
-            borderRadius: 10,
-            border: "1px solid #cfcfcf",
-            background: "#fff",
-            cursor: "pointer",
-            fontWeight: 800,
-            color: "#000",
+      {stops.map((s, i) => (
+        <AutocompleteInput
+          key={i}
+          placeholder={`Stop ${i + 1}`}
+          value={s}
+          onChange={(v) => {
+            const copy = [...stops];
+            copy[i] = v;
+            setStops(copy);
           }}
-        >
-          + Add stop
-        </button>
-      </div>
-
-      {stops.map((s, idx) => (
-        <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ flex: 1 }}>
-            <AutocompleteInput
-              placeholder={`Stop ${idx + 1}`}
-              value={s}
-              onChange={(v) => updateStop(idx, v)}
-              inputStyle={inputStyle}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => removeStop(idx)}
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 10,
-              border: "1px solid #cfcfcf",
-              background: "#fff",
-              cursor: "pointer",
-              fontWeight: 900,
-              color: "#000",
-            }}
-          >
-            ✕
-          </button>
-        </div>
+          inputStyle={inputStyle}
+        />
       ))}
 
-      {/* DROPOFF */}
-      <AutocompleteInput
-        placeholder="Dropoff address"
-        value={dropoff}
-        onChange={setDropoff}
-        inputStyle={inputStyle}
-      />
+      <button onClick={() => setStops([...stops, ""])} style={{ marginBottom: 12 }}>
+        + Add stop
+      </button>
 
-      {/* ✅ GET PRICE (white bg / black text) */}
+      <AutocompleteInput placeholder="Dropoff address" value={dropoff} onChange={setDropoff} inputStyle={inputStyle} />
+
       <button
         onClick={getQuote}
-        disabled={!canQuote}
-        style={getPriceBtnStyle}
-        onMouseDown={(e) => {
-          if (canQuote) e.currentTarget.style.transform = "scale(0.99)";
-        }}
-        onMouseUp={(e) => {
-          if (canQuote) e.currentTarget.style.transform = "scale(1)";
+        disabled={!pickup || !dropoff || !name || !phone || !rideDate || !rideTime}
+        style={{
+          width: "100%",
+          padding: 14,
+          background: "#fff",
+          color: "#000",
+          fontWeight: 800,
+          borderRadius: 10,
         }}
       >
         {loading ? "Calculating..." : "Get Price"}
       </button>
 
-      {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
-
       {result && (
-        <div style={{ marginTop: 20 }}>
-          {"trafficMinutes" in result && (
-            <p style={{ margin: 0, opacity: 0.9, color: "#fff" }}>
-              Estimated minutes: <b>{result.trafficMinutes}</b>
-            </p>
-          )}
-
-          <h2 style={{ marginTop: 8, color: "#fff" }}>${Number(result.price).toFixed(2)}</h2>
-
-          <button
-            onClick={payNow}
-            style={payBtnStyle}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#000";
-              e.currentTarget.style.color = "#fff";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#fff";
-              e.currentTarget.style.color = "#000";
-            }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.99)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-          >
-            Pay Now
-          </button>
+        <div style={{ marginTop: 20, color: "#fff" }}>
+          <h2>${result.price}</h2>
+          <p>
+            Please send payment via <b>Zelle, Cash App, or Chime</b> to:
+            <br />
+            <b>872-344-5076</b>
+            <br />
+            Include your <b>name</b> in the description.
+          </p>
+          <p><b>Once payment is received, you will receive a confirmation text.</b></p>
         </div>
       )}
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </main>
   );
 }
