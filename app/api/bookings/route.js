@@ -7,20 +7,19 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    const { error } = await supabase.from("bookings").insert([
-      {
-        name: body.name || null,
-        phone: body.phone || null,
-        ride_date: body.rideDate || null,
-        ride_time: body.rideTime || null,
-        pickup: body.pickup || null,
-        dropoff: body.dropoff || null,
-        stops: Array.isArray(body.stops) ? body.stops : [],
-        passengers: Number(body.passengers || 0),
-        price: Number(body.price || 0),
-        payment_method: body.paymentMethod || "zelle/cashapp/chime",
-        status: "pending",
-      },
+    const name = (body.name || "").trim() || null;
+    const phone = (body.phone || "").trim() || null;
+    const ride_date = (body.rideDate || "").trim() || null;
+    const pickup = (body.pickup || "").trim() || null;
+    const dropoff = (body.dropoff || "").trim() || null;
+
+    const stops = Array.isArray(body.stops)
+      ? body.stops.map((s) => String(s || "").trim()).filter(Boolean)
+      : [];
+
+    // IMPORTANT: your table name has a space
+    const { error } = await supabase.from("Bookings update").insert([
+      { name, phone, ride_date, pickup, dropoff, stops },
     ]);
 
     if (error) {
