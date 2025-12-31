@@ -157,6 +157,23 @@ export default function BookPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Quote failed");
       setResult(data);
+      // Save booking to Supabase (no UI changes)
+await fetch("/api/bookings", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    name,
+    phone,
+    rideDate,
+    rideTime,
+    pickup,
+    dropoff,
+    stops,
+    passengers,
+    price: data.price,
+    paymentMethod: "zelle/cashapp/chime",
+  }),
+});
     } catch (e) {
       setError(e.message);
     } finally {
