@@ -1,6 +1,26 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+/** ---------- helpers ---------- **/
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function makeYMD(d) {
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth() + 1);
+  const dd = pad2(d.getDate());
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function labelForDate(d) {
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function formatPhone(raw) {
   const digits = String(raw || "").replace(/\D/g, "").slice(0, 10);
   const a = digits.slice(0, 3);
@@ -11,11 +31,30 @@ function formatPhone(raw) {
   return `(${a}) ${b}-${c}`;
 }
 
-function toTitleCase(s) {
-  return String(s || "").trim();
+/**
+ * Block times that are within 2 hours from NOW (today only).
+ * timeValue must be "HH:mm" 24-hr.
+ */
+function isTimeBlocked(rideDate, timeValue) {
+  if (!rideDate || !timeValue) return false;
+
+  const now = new Date();
+  const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000); // now + 2 hours
+
+  const [hh, mm] = timeValue.split(":").map(Number);
+  const selected = new Date(rideDate);
+  selected.setHours(hh, mm, 0, 0);
+
+  const isToday =
+    selected.getFullYear() === now.getFullYear() &&
+    selected.getMonth() === now.getMonth() &&
+    selected.getDate() === now.getDate();
+
+  if (!isToday) return false;
+  return selected.getTime() < minAllowed.getTime();
 }
 
-// Autocomplete input (uses your /api/places route)
+/** ---------- autocomplete input (uses /api/places) ---------- **/
 function AutoAddress({
   placeholder,
   value,
@@ -137,44 +176,25 @@ function AutoAddress({
   );
 }
 
-function pad2(n) {
-  return String(n).padStart(2, "0");
-}
-
-function makeYMD(d) {
-  const yyyy = d.getFullYear();
-  const mm = pad2(d.getMonth() + 1);
-  const dd = pad2(d.getDate());
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function labelForDate(d) {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`;
-}
-
+/** ---------- page ---------- **/
 export default function BookPage() {
   const LOGO_SRC = "/tempmotion-logo.jpg";
 
-  // Booking fields
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [passengers, setPassengers] = useState(0);
 
   const [rideDate, setRideDate] = useState(""); // YYYY-MM-DD
-  const [rideTime, setRideTime] = useState(""); // HH:mm
+  const [rideTime, setRideTime] = useState(""); // HH:mm (24 hr)
 
   const [pickup, setPickup] = useState("");
   const [stops, setStops] = useState([]);
   const [dropoff, setDropoff] = useState("");
 
-  // Quote + booking
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
-  // Styles (kept the same)
   const inputStyle = {
     width: "100%",
     padding: 12,
@@ -222,12 +242,11 @@ export default function BookPage() {
     cursor: "pointer",
   };
 
-  // Date dropdown: today -> 30 days out
+  // Date dropdown: today -> 30 days out (scroll dropdown)
   const dateOptions = useMemo(() => {
     const opts = [];
     const start = new Date();
     start.setHours(0, 0, 0, 0);
-
     for (let i = 0; i <= 30; i++) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
@@ -236,7 +255,7 @@ export default function BookPage() {
     return opts;
   }, []);
 
-  // Time options: 7:00 AM -> 9:45 PM (cuts off 10pm–7am)
+  // Time options: 7:00 AM -> 9:45 PM (15 min intervals)
   const timeOptions = useMemo(() => {
     const opts = [];
     let minutes = 7 * 60; // 07:00
@@ -244,24 +263,26 @@ export default function BookPage() {
     while (minutes <= end) {
       const hh24 = Math.floor(minutes / 60);
       const mm = minutes % 60;
+
       const isPM = hh24 >= 12;
       const hh12raw = hh24 % 12;
       const hh12 = hh12raw === 0 ? 12 : hh12raw;
+
       const label = `${hh12}:${pad2(mm)} ${isPM ? "PM" : "AM"}`;
-      const value = `${pad2(hh24)}:${pad2(mm)}`; // HTML time value
+      const value = `${pad2(hh24)}:${pad2(mm)}`;
+
       opts.push({ label, value });
       minutes += 15;
     }
     return opts;
   }, []);
 
-  function isTwoHoursAhead(dateStr, timeStr) {
-    if (!dateStr || !timeStr) return false;
-    const [H, M] = timeStr.split(":").map((n) => Number(n));
-    const d = new Date(dateStr);
-    d.setHours(H, M, 0, 0);
-    return d.getTime() - Date.now() >= 2 * 60 * 60 * 1000;
-  }
+  // If user already selected a time, and then changes date to TODAY where it becomes blocked, clear it.
+  useEffect(() => {
+    if (rideDate && rideTime && isTimeBlocked(rideDate, rideTime)) {
+      setRideTime("");
+    }
+  }, [rideDate, rideTime]);
 
   async function getQuote() {
     setLoading(true);
@@ -269,10 +290,6 @@ export default function BookPage() {
     setResult(null);
 
     try {
-      if (!isTwoHoursAhead(rideDate, rideTime)) {
-        throw new Error("Must book at least 2 hours in advance.");
-      }
-
       const res = await fetch("/api/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -309,8 +326,8 @@ export default function BookPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: toTitleCase(name),
-          phone,
+          name: name?.trim() || null,
+          phone: phone?.trim() || null,
           rideDate,
           rideTime,
           pickup,
@@ -352,13 +369,15 @@ export default function BookPage() {
         padding: "0 16px",
       }}
     >
+      {/* Keep your placeholder + dropdown behavior */}
       <style>{`
         input::placeholder { color: #bfbfbf; opacity: 1; }
         select { color: #fff; }
         select option { color: #111; }
+        option:disabled { color: #999 !important; }
       `}</style>
 
-      {/* LOGO */}
+      {/* Logo + header */}
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <img
           src={LOGO_SRC}
@@ -375,7 +394,7 @@ export default function BookPage() {
         </div>
       </div>
 
-      {/* NAME */}
+      {/* Name + Phone */}
       <div style={{ marginBottom: 12 }}>
         <input
           placeholder="Name"
@@ -385,7 +404,6 @@ export default function BookPage() {
         />
       </div>
 
-      {/* PHONE */}
       <div style={{ marginBottom: 12 }}>
         <input
           placeholder="Phone number"
@@ -396,7 +414,7 @@ export default function BookPage() {
         />
       </div>
 
-      {/* PASSENGERS */}
+      {/* Passengers under phone */}
       <div style={{ marginBottom: 12 }}>
         <select
           value={passengers}
@@ -410,9 +428,13 @@ export default function BookPage() {
         </select>
       </div>
 
-      {/* DATE (dropdown / scroll style) */}
+      {/* Date dropdown (scroll style) */}
       <div style={{ marginBottom: 12 }}>
-        <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={selectStyle}>
+        <select
+          value={rideDate}
+          onChange={(e) => setRideDate(e.target.value)}
+          style={selectStyle}
+        >
           <option value="">Select date</option>
           {dateOptions.map((d) => (
             <option key={d.value} value={d.value}>
@@ -422,12 +444,20 @@ export default function BookPage() {
         </select>
       </div>
 
-      {/* TIME (dropdown, 7AM–9:45PM ONLY) */}
+      {/* Time dropdown with 2-hour blocking */}
       <div style={{ marginBottom: 8 }}>
-        <select value={rideTime} onChange={(e) => setRideTime(e.target.value)} style={selectStyle}>
+        <select
+          value={rideTime}
+          onChange={(e) => setRideTime(e.target.value)}
+          style={selectStyle}
+        >
           <option value="">Select time</option>
           {timeOptions.map((t) => (
-            <option key={t.value} value={t.value}>
+            <option
+              key={t.value}
+              value={t.value}
+              disabled={isTimeBlocked(rideDate, t.value)}
+            >
               {t.label}
             </option>
           ))}
@@ -438,7 +468,7 @@ export default function BookPage() {
         Must book at least <strong>2 hours</strong> in advance
       </div>
 
-      {/* PICKUP */}
+      {/* Pickup */}
       <AutoAddress
         placeholder="Pickup address"
         value={pickup}
@@ -446,7 +476,7 @@ export default function BookPage() {
         inputStyle={inputStyle}
       />
 
-      {/* STOPS */}
+      {/* Stops between pickup + dropoff */}
       <div style={{ color: "#fff", fontWeight: 700, marginBottom: 6 }}>
         Stops (optional)
       </div>
@@ -480,7 +510,7 @@ export default function BookPage() {
         + Add stop
       </button>
 
-      {/* DROPOFF */}
+      {/* Dropoff */}
       <AutoAddress
         placeholder="Dropoff address"
         value={dropoff}
@@ -488,7 +518,7 @@ export default function BookPage() {
         inputStyle={inputStyle}
       />
 
-      {/* GET PRICE */}
+      {/* Get Price */}
       <button
         onClick={getQuote}
         disabled={disabled}
@@ -502,7 +532,7 @@ export default function BookPage() {
 
       {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
 
-      {/* PRICE + CONFIRM */}
+      {/* Price + Confirm */}
       {result && (
         <div style={{ marginTop: 20 }}>
           {typeof result.trafficMinutes !== "undefined" ? (
