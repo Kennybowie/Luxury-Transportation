@@ -17,7 +17,6 @@ function toTitleCase(s) {
 
 // Autocomplete input (uses your /api/places route)
 function AutoAddress({
-  label,
   placeholder,
   value,
   onChange,
@@ -74,12 +73,6 @@ function AutoAddress({
 
   return (
     <div ref={wrapRef} style={{ position: "relative", marginBottom: 12 }}>
-      {label ? (
-        <div style={{ color: "#fff", fontWeight: 700, marginBottom: 6 }}>
-          {label}
-        </div>
-      ) : null}
-
       <input
         placeholder={placeholder}
         value={value}
@@ -144,8 +137,24 @@ function AutoAddress({
   );
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function makeYMD(d) {
+  const yyyy = d.getFullYear();
+  const mm = pad2(d.getMonth() + 1);
+  const dd = pad2(d.getDate());
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function labelForDate(d) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`;
+}
+
 export default function BookPage() {
-  // Header
   const LOGO_SRC = "/tempmotion-logo.jpg";
 
   // Booking fields
@@ -153,8 +162,8 @@ export default function BookPage() {
   const [phone, setPhone] = useState("");
   const [passengers, setPassengers] = useState(0);
 
-  const [rideDate, setRideDate] = useState("");
-  const [rideTime, setRideTime] = useState("");
+  const [rideDate, setRideDate] = useState(""); // YYYY-MM-DD
+  const [rideTime, setRideTime] = useState(""); // HH:mm
 
   const [pickup, setPickup] = useState("");
   const [stops, setStops] = useState([]);
@@ -165,7 +174,7 @@ export default function BookPage() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
-  // Styles (kept same vibe)
+  // Styles (kept the same)
   const inputStyle = {
     width: "100%",
     padding: 12,
@@ -192,8 +201,8 @@ export default function BookPage() {
     padding: 14,
     borderRadius: 10,
     border: "2px solid #000",
-    background: "#fff", // ✅ requested: white background
-    color: "#000",      // ✅ requested: black font
+    background: "#fff",
+    color: "#000",
     fontSize: 16,
     fontWeight: 700,
     cursor: "pointer",
@@ -213,21 +222,33 @@ export default function BookPage() {
     cursor: "pointer",
   };
 
+  // Date dropdown: today -> 30 days out
+  const dateOptions = useMemo(() => {
+    const opts = [];
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i <= 30; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      opts.push({ value: makeYMD(d), label: labelForDate(d) });
+    }
+    return opts;
+  }, []);
+
   // Time options: 7:00 AM -> 9:45 PM (cuts off 10pm–7am)
   const timeOptions = useMemo(() => {
     const opts = [];
-    // start 07:00
-    let minutes = 7 * 60;
-    // last selectable 21:45 (9:45 PM) so anything 10:00 PM+ is excluded
-    const end = 21 * 60 + 45;
+    let minutes = 7 * 60; // 07:00
+    const end = 21 * 60 + 45; // 21:45 (9:45 PM)
     while (minutes <= end) {
       const hh24 = Math.floor(minutes / 60);
       const mm = minutes % 60;
       const isPM = hh24 >= 12;
       const hh12raw = hh24 % 12;
       const hh12 = hh12raw === 0 ? 12 : hh12raw;
-      const label = `${hh12}:${String(mm).padStart(2, "0")} ${isPM ? "PM" : "AM"}`;
-      const value = `${String(hh24).padStart(2, "0")}:${String(mm).padStart(2, "0")}`; // HTML time value
+      const label = `${hh12}:${pad2(mm)} ${isPM ? "PM" : "AM"}`;
+      const value = `${pad2(hh24)}:${pad2(mm)}`; // HTML time value
       opts.push({ label, value });
       minutes += 15;
     }
@@ -236,7 +257,6 @@ export default function BookPage() {
 
   function isTwoHoursAhead(dateStr, timeStr) {
     if (!dateStr || !timeStr) return false;
-    // timeStr is "HH:mm"
     const [H, M] = timeStr.split(":").map((n) => Number(n));
     const d = new Date(dateStr);
     d.setHours(H, M, 0, 0);
@@ -313,6 +333,15 @@ export default function BookPage() {
     }
   }
 
+  const disabled =
+    loading ||
+    !name.trim() ||
+    !phone.trim() ||
+    !pickup.trim() ||
+    !dropoff.trim() ||
+    !rideDate ||
+    !rideTime;
+
   return (
     <main
       style={{
@@ -323,21 +352,13 @@ export default function BookPage() {
         padding: "0 16px",
       }}
     >
-      {/* Placeholder styling */}
       <style>{`
-        input::placeholder {
-          color: #bfbfbf;
-          opacity: 1;
-        }
-        select {
-          color: #fff;
-        }
-        select option {
-          color: #111;
-        }
+        input::placeholder { color: #bfbfbf; opacity: 1; }
+        select { color: #fff; }
+        select option { color: #111; }
       `}</style>
 
-      {/* ✅ LOGO (CENTERED FIX) */}
+      {/* LOGO */}
       <div style={{ textAlign: "center", marginBottom: 20 }}>
         <img
           src={LOGO_SRC}
@@ -346,7 +367,7 @@ export default function BookPage() {
             width: 90,
             maxWidth: "100%",
             margin: "0 auto 6px",
-            display: "block", // ✅ keeps it centered with margin auto
+            display: "block",
           }}
         />
         <div style={{ fontSize: 13, letterSpacing: 1, opacity: 0.85, color: "#fff" }}>
@@ -375,7 +396,7 @@ export default function BookPage() {
         />
       </div>
 
-      {/* ✅ PASSENGERS (UNDER PHONE) */}
+      {/* PASSENGERS */}
       <div style={{ marginBottom: 12 }}>
         <select
           value={passengers}
@@ -389,23 +410,21 @@ export default function BookPage() {
         </select>
       </div>
 
-      {/* DATE */}
+      {/* DATE (dropdown / scroll style) */}
       <div style={{ marginBottom: 12 }}>
-        <input
-          type="date"
-          value={rideDate}
-          onChange={(e) => setRideDate(e.target.value)}
-          style={inputStyle}
-        />
+        <select value={rideDate} onChange={(e) => setRideDate(e.target.value)} style={selectStyle}>
+          <option value="">Select date</option>
+          {dateOptions.map((d) => (
+            <option key={d.value} value={d.value}>
+              {d.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* ✅ TIME (DROPDOWN, 7AM–9:45PM ONLY) */}
+      {/* TIME (dropdown, 7AM–9:45PM ONLY) */}
       <div style={{ marginBottom: 8 }}>
-        <select
-          value={rideTime}
-          onChange={(e) => setRideTime(e.target.value)}
-          style={selectStyle}
-        >
+        <select value={rideTime} onChange={(e) => setRideTime(e.target.value)} style={selectStyle}>
           <option value="">Select time</option>
           {timeOptions.map((t) => (
             <option key={t.value} value={t.value}>
@@ -419,7 +438,7 @@ export default function BookPage() {
         Must book at least <strong>2 hours</strong> in advance
       </div>
 
-      {/* PICKUP (autocomplete) */}
+      {/* PICKUP */}
       <AutoAddress
         placeholder="Pickup address"
         value={pickup}
@@ -453,7 +472,7 @@ export default function BookPage() {
           marginBottom: 16,
           background: "none",
           border: "none",
-          color: "#fff", // keep visible on dark background
+          color: "#fff",
           fontWeight: 700,
           cursor: "pointer",
         }}
@@ -461,7 +480,7 @@ export default function BookPage() {
         + Add stop
       </button>
 
-      {/* DROPOFF (autocomplete) */}
+      {/* DROPOFF */}
       <AutoAddress
         placeholder="Dropoff address"
         value={dropoff}
@@ -472,27 +491,10 @@ export default function BookPage() {
       {/* GET PRICE */}
       <button
         onClick={getQuote}
-        disabled={
-          loading ||
-          !name.trim() ||
-          !phone.trim() ||
-          !pickup.trim() ||
-          !dropoff.trim() ||
-          !rideDate ||
-          !rideTime
-        }
+        disabled={disabled}
         style={{
           ...buttonPrimary,
-          opacity:
-            loading ||
-            !name.trim() ||
-            !phone.trim() ||
-            !pickup.trim() ||
-            !dropoff.trim() ||
-            !rideDate ||
-            !rideTime
-              ? 0.6
-              : 1,
+          opacity: disabled ? 0.6 : 1,
         }}
       >
         {loading ? "Calculating..." : "Get Price"}
@@ -513,11 +515,7 @@ export default function BookPage() {
             ${typeof result.price === "number" ? result.price : result.price}
           </h2>
 
-          <button
-            type="button"
-            onClick={confirmBooking}
-            style={buttonSecondary}
-          >
+          <button type="button" onClick={confirmBooking} style={buttonSecondary}>
             Confirm Booking
           </button>
         </div>
