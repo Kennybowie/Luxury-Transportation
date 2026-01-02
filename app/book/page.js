@@ -277,7 +277,7 @@ export default function BookPage() {
     return opts;
   }, []);
 
-  // If user already selected a time, and then changes date to TODAY where it becomes blocked, clear it.
+  // If user selected a time and it becomes blocked, clear it.
   useEffect(() => {
     if (rideDate && rideTime && isTimeBlocked(rideDate, rideTime)) {
       setRideTime("");
@@ -369,12 +369,14 @@ export default function BookPage() {
         padding: "0 16px",
       }}
     >
-      {/* Keep your placeholder + dropdown behavior */}
       <style>{`
         input::placeholder { color: #bfbfbf; opacity: 1; }
         select { color: #fff; }
         select option { color: #111; }
-        option:disabled { color: #999 !important; }
+        option:disabled { 
+          color: #777 !important; 
+          text-decoration: line-through; 
+        }
       `}</style>
 
       {/* Logo + header */}
@@ -414,14 +416,14 @@ export default function BookPage() {
         />
       </div>
 
-      {/* Passengers under phone */}
+      {/* Passengers */}
       <div style={{ marginBottom: 12 }}>
         <select
           value={passengers}
           onChange={(e) => setPassengers(Number(e.target.value))}
           style={selectStyle}
         >
-          <option value={0}>Additional passengers</option>
+          <option value={0}>Just me (0)</option>
           <option value={1}>1 passenger</option>
           <option value={2}>2 passengers</option>
           <option value={3}>3 passengers</option>
@@ -452,15 +454,14 @@ export default function BookPage() {
           style={selectStyle}
         >
           <option value="">Select time</option>
-          {timeOptions.map((t) => (
-            <option
-              key={t.value}
-              value={t.value}
-              disabled={isTimeBlocked(rideDate, t.value)}
-            >
-              {t.label}
-            </option>
-          ))}
+          {timeOptions.map((t) => {
+            const blocked = isTimeBlocked(rideDate, t.value);
+            return (
+              <option key={t.value} value={t.value} disabled={blocked}>
+                {blocked ? `${t.label} (Unavailable)` : t.label}
+              </option>
+            );
+          })}
         </select>
       </div>
 
@@ -476,7 +477,7 @@ export default function BookPage() {
         inputStyle={inputStyle}
       />
 
-      {/* Stops between pickup + dropoff */}
+      {/* Stops */}
       <div style={{ color: "#fff", fontWeight: 700, marginBottom: 6 }}>
         Stops (optional)
       </div>
