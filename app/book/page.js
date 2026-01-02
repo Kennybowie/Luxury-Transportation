@@ -41,9 +41,10 @@ function isTimeBlocked(rideDate, timeValue) {
   const now = new Date();
   const minAllowed = new Date(now.getTime() + 2 * 60 * 60 * 1000); // now + 2 hours
 
-  const [hh, mm] = timeValue.split(":").map(Number);
-  const selected = new Date(rideDate);
-  selected.setHours(hh, mm, 0, 0);
+  // ✅ Parse YYYY-MM-DD in LOCAL time (prevents UTC date shift issues)
+  const [y, m, d] = String(rideDate).split("-").map(Number);
+  const [hh, mm] = String(timeValue).split(":").map(Number);
+  const selected = new Date(y, m - 1, d, hh, mm, 0, 0);
 
   const isToday =
     selected.getFullYear() === now.getFullYear() &&
