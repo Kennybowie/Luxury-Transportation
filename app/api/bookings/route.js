@@ -7,7 +7,12 @@ export const runtime = "nodejs";
 export async function POST(req) {
   try {
     const body = await req.json();
-    console.log("BOOKINGS BODY:", body);
+    console.log("BOOKINGS BODY (price/passengers):", {
+  passengers: body.passengers,
+  price: body.price,
+  rideDate: body.rideDate,
+  rideTime: body.rideTime,
+});
 
     // Save booking
     const { error } = await supabase.from("Bookings update").insert([
