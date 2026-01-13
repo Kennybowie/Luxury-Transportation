@@ -324,7 +324,7 @@ export default function BookPage() {
         result && typeof result.price !== "undefined" ? result.price : null;
         console.log("SUBMITTING BOOKING:", {
   passengers,
-  price,
+  price: priceToSend,
 });
 
       const res = await fetch("/api/bookings", {
