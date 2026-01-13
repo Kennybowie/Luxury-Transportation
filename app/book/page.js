@@ -299,7 +299,8 @@ export default function BookPage() {
           `/api/blocked?rideDate=${encodeURIComponent(rideDate)}`
         );
         const data = await res.json().catch(() => ({}));
-        setManualBlocked(Array.isArray(data.blocked) ? data.blocked : []);
+console.log("BLOCKED API RESULT:", rideDate, data);
+setManualBlocked(Array.isArray(data.blocked) ? data.blocked : []);
       } catch {
         setManualBlocked([]);
       }
