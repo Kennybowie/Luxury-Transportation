@@ -25,7 +25,7 @@ export async function POST(req) {
     }
 
     const hourlyRate = Number(process.env.HOURLY_RATE || 40);
-    const minimumCharge = Number(process.env.MINIMUM_CHARGE || 10);
+    const minimumCharge = Number(process.env.MINIMUM_CHARGE || 20);
 
     // Use current time (traffic-aware)
     const departureTime = new Date(Date.now() + 2 * 60 * 1000).toISOString();
