@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/app/lib/supabase";
 import twilio from "twilio";
-
+import { Resend } from "resend";
 export const runtime = "nodejs";
 
 export async function POST(req) {
@@ -13,6 +13,7 @@ export async function POST(req) {
   rideDate: body.rideDate,
   rideTime: body.rideTime,
 });
+const resend = new Resend(process.env.RESEND_API_KEY);
 
     // Save booking
     const { error } = await supabase.from("Bookings update").insert([
@@ -34,6 +35,29 @@ export async function POST(req) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    // Send email notification
+await resend.emails.send({
+  from: "Bookings <onboarding@resend.dev>",
+  to: process.env.ALERT_EMAIL,
+  subject: "🚗 New Transportation Booking",
+  html: `
+    <h2>New Booking Received</h2>
+    <p><strong>Name:</strong> ${body.name || "N/A"}</p>
+    <p><strong>Phone:</strong> ${body.phone || "N/A"}</p>
+    <p><strong>Date:</strong> ${body.rideDate || "N/A"}</p>
+    <p><strong>Time:</strong> ${body.rideTime || "N/A"}</p>
+    <p><strong>Passengers:</strong> ${body.passengers ?? "N/A"}</p>
+    <p><strong>Price:</strong> $${body.price ?? "N/A"}</p>
+    <p><strong>Pickup:</strong> ${body.pickup || "N/A"}</p>
+    <p><strong>Dropoff:</strong> ${body.dropoff || "N/A"}</p>
+    <p><strong>Stops:</strong> ${
+      Array.isArray(body.stops) && body.stops.length
+        ? body.stops.join("<br/>")
+        : "None"
+    }</p>
+  `,
+});
+
 
     // Send SMS alert to you
     const sid = process.env.TWILIO_ACCOUNT_SID;
