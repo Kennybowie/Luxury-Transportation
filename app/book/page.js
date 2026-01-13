@@ -195,6 +195,8 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+    // Manually blocked times from Supabase
+  const [manualBlocked, setManualBlocked] = useState([]);
 
   const inputStyle = {
     width: "100%",
@@ -284,6 +286,25 @@ export default function BookPage() {
       setRideTime("");
     }
   }, [rideDate, rideTime]);
+    // Fetch manually blocked times for selected date
+  useEffect(() => {
+    if (!rideDate) {
+      setManualBlocked([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/blocked?rideDate=${encodeURIComponent(rideDate)}`
+        );
+        const data = await res.json().catch(() => ({}));
+        setManualBlocked(Array.isArray(data.blocked) ? data.blocked : []);
+      } catch {
+        setManualBlocked([]);
+      }
+    })();
+  }, [rideDate]);
 
   async function getQuote() {
     setLoading(true);
@@ -460,7 +481,8 @@ export default function BookPage() {
         >
           <option value="">Select time</option>
           {timeOptions.map((t) => {
-            const blocked = isTimeBlocked(rideDate, t.value);
+            const blocked =
+  isTimeBlocked(rideDate, t.value) || manualBlocked.includes(t.value);
             return (
               <option key={t.value} value={t.value} disabled={blocked}>
                 {blocked ? `${t.label} (Unavailable)` : t.label}
