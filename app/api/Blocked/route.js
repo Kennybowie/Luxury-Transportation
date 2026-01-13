@@ -4,23 +4,28 @@ import { supabase } from "@/app/lib/supabase";
 export const runtime = "nodejs";
 
 export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-  const rideDate = searchParams.get("rideDate"); // YYYY-MM-DD
+  const { searchParams } = new URL(req.url);
 
-  if (!rideDate) {
-    return NextResponse.json({ blocked: [] });
-  }
+  // /api/blocked?ridedate=2026-01-14
+  const ridedate = searchParams.get("ridedate"); // YYYY-MM-DD
 
-  const { data, error } = await supabase
-    .from("BlockedSlots")
-    .select("ride_time")
-    .eq("ride_date", rideDate);
+  if (!ridedate) {
+    return NextResponse.json({ blocked: [] });
+  }
 
-  if (error) {
-    return NextResponse.json({ blocked: [], error: error.message }, { status: 400 });
-  }
+  const { data, error } = await supabase
+    .from("blockedSlots")        // ✅ matches your table name
+    .select("ride_time")
+    .eq("ride_date", ridedate);  // ✅ use ridedate
 
-  return NextResponse.json({
-    blocked: (data || []).map((r) => r.ride_time),
-  });
+  if (error) {
+    return NextResponse.json(
+      { blocked: [], error: error.message },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({
+    blocked: (data || []).map((r) => r.ride_time),
+  });
 }
