@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
+
+  // MUST match the URL param exactly
   const rideDate = searchParams.get("rideDate"); // YYYY-MM-DD
 
   if (!rideDate) {
@@ -12,7 +14,7 @@ export async function GET(req) {
   }
 
   const { data, error } = await supabase
-    .from("blockedSlots")
+    .from("blockedSlots") // lowercase table name
     .select("ride_time")
     .eq("ride_date", rideDate);
 
