@@ -469,6 +469,9 @@ export default function BookPage() {
       <div style={{ fontSize: 12, marginBottom: 16, opacity: 0.9, color: "#fff" }}>
         Must book at least <strong>2 hours</strong> in advance
       </div>
+      <div style={{ fontSize: 12, marginBottom: 16, opacity: 0.9, color: "#fff" }}>
+  <strong>$20 minimum</strong>
+</div>
 
       {/* Pickup */}
       <AutoAddress
