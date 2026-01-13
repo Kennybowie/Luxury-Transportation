@@ -559,6 +559,31 @@ export default function BookPage() {
           </button>
         </div>
       )}
+      {/* Contact info */}
+      <div
+        style={{
+          marginTop: 40,
+          paddingTop: 20,
+          borderTop: "1px solid rgba(255,255,255,0.15)",
+          fontSize: 13,
+          color: "#fff",
+          opacity: 0.9,
+          textAlign: "center",
+        }}
+      >
+        <div style={{ marginBottom: 6 }}>Questions or concerns?</div>
+
+        <a
+          href="tel:8723445076"
+          style={{
+            color: "#fff",
+            fontWeight: 700,
+            textDecoration: "none",
+          }}
+        >
+          📞 872-344-5076
+        </a>
+      </div>
     </main>
   );
 }
