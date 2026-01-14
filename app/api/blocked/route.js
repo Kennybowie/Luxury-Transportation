@@ -5,8 +5,6 @@ export const runtime = "nodejs";
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
-
-  // MUST match the URL param exactly
   const rideDate = searchParams.get("rideDate"); // YYYY-MM-DD
 
   if (!rideDate) {
@@ -14,7 +12,7 @@ export async function GET(req) {
   }
 
   const { data, error } = await supabase
-    .from("blockedSlots") // lowercase table name
+    .from("blockedslots") // MUST be lowercase
     .select("ride_time")
     .eq("ride_date", rideDate);
 
@@ -26,6 +24,6 @@ export async function GET(req) {
   }
 
   return NextResponse.json({
-    blocked: (data || []).map((r) => r.ride_time),
+    blocked: data.map((row) => row.ride_time),
   });
 }
