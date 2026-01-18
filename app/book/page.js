@@ -369,9 +369,11 @@ setManualBlocked(Array.isArray(data.blocked) ? data.blocked : []);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || data.message || "Booking failed");
 
-      alert(
-        "✅ Booking Submitted!\n \nTo confirm your booking, please send payment via Zelle, Cash App, or Chime to 872-344-5076.\nOnce payment is received you will receive a confirmation text."
-      );
+     alert(
+  "✅ Booking Submitted!\n\n" +
+  "To confirm your booking, please send payment via Zelle, Cash App, or Chime to 872-344-5076.\n\n" +
+  "Once payment is received you will receive a confirmation text."
+);
     } catch (e) {
       alert(e.message || "Booking error");
     }
