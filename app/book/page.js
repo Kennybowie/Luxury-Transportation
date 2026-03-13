@@ -389,15 +389,18 @@ setManualBlocked(Array.isArray(data.blocked) ? data.blocked : []);
     !rideTime;
 
   return (
-    <main
-      style={{
-        maxWidth: 480,
-        margin: "40px auto",
-        fontFamily: "sans-serif",
-        textAlign: "center",
-        padding: "0 16px",
-      }}
-    >
+  <main
+    style={{
+      maxWidth: 480,
+      margin: "40px auto",
+      fontFamily: "sans-serif",
+      textAlign: "center",
+      padding: "0 16px",
+      backgroundColor: "#000",
+      color: "#fff",
+      minHeight: "100vh",
+    }}
+  >
       <style>{`
         input::placeholder { color: #bfbfbf; opacity: 1; }
         select { color: #fff; }
