@@ -262,7 +262,7 @@ export default function BookPage() {
   const timeOptions = useMemo(() => {
     const opts = [];
     let minutes = 7 * 60; // 07:00
-    const end = 21 * 60 + 45; // 21:45 (9:45 PM)
+    const end = 20 * 60; // 20:00 (8:00 PM)
     while (minutes <= end) {
       const hh24 = Math.floor(minutes / 60);
       const mm = minutes % 60;
