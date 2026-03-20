@@ -24,7 +24,7 @@ export async function POST(req) {
       );
     }
 
-    const hourlyRate = Number(process.env.HOURLY_RATE || 40);
+    const hourlyRate = Number(process.env.HOURLY_RATE || 45);
     const minimumCharge = Number(process.env.MINIMUM_CHARGE || 20);
 
     // Use current time (traffic-aware)
