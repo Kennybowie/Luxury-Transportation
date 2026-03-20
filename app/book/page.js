@@ -590,7 +590,7 @@ setManualBlocked(Array.isArray(data.blocked) ? data.blocked : []);
       {/* Contact info */}
       <div
         style={{
-          marginTop: 40,
+          marginTop: 20,
           paddingTop: 20,
           borderTop: "1px solid rgba(255,255,255,0.15)",
           fontSize: 13,
